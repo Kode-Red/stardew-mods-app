@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "lib": ["ES2022"],
+    "types": ["node", "electron-vite/node"],
+    "moduleResolution": "Bundler",
+    "noEmit": true
+  },
+  "include": [
+    "src/main/**/*",
+    "src/preload/**/*",
+    "src/shared/**/*"
+  ],
+  "comment": "electron.vite.config.ts is validated by the electron-vite build itself; it is excluded here because Nuxt UI (Vite 7) and electron-vite (Vite 6) expose two incompatible Vite plugin types."
+}

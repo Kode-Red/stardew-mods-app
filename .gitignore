@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+.output/
+.nuxt/
+out/
+release/
+*.tsbuildinfo
+
+# turbo
+.turbo/
+
+# test
+coverage/
+
+# env & local
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
