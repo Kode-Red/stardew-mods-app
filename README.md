@@ -97,8 +97,9 @@ the future web app alike.
 
 1. **Foundations** — monorepo, `@sdm/core`, Electron + Nuxt UI shell. ✅
 2. **Mod manager** — locate the Stardew install, scan `Mods/`, list mods,
-   enable/disable, uninstall, reveal/open folders, and run update/compat checks
-   via the [SMAPI Web API](https://smapi.io/). ✅
+   enable/disable, uninstall, reveal/open folders, run update/compat checks via
+   the [SMAPI Web API](https://smapi.io/), and one-click **update** outdated mods
+   (via their update key: CurseForge / GitHub releases / Nexus Premium). ✅
 3. **Downloads** — install from local zip ✅, `nxm://` handler ✅, Nexus API
    (personal key) ✅, CurseForge (API key + search, respects each project's
    third-party distribution toggle) ✅. Next: .rar/.7z support.

@@ -113,6 +113,8 @@ export interface DesktopApi {
   scanMods(): Promise<ScanResult>;
   setModEnabled(relativePath: string, enabled: boolean): Promise<ScanResult>;
   checkUpdates(): Promise<UpdateInfo[]>;
+  /** Download + install the newer version of a mod via its update key. */
+  updateMod(uniqueId: string): Promise<ScanResult>;
   /** Delete a mod's folder, then return the fresh scan. */
   uninstallMod(relativePath: string): Promise<ScanResult>;
   /** Highlight a mod's folder in the OS file manager. */

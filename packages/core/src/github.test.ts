@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   githubLatestReleaseUrl,
   parseGithubRelease,
+  pickReleaseModAsset,
   pickSmapiInstallerAsset,
   versionFromTag,
 } from "./github.js";
@@ -46,5 +47,21 @@ describe("github helpers", () => {
   it("strips a leading v from a tag", () => {
     expect(versionFromTag("v4.1.10")).toBe("4.1.10");
     expect(versionFromTag("4.1.10")).toBe("4.1.10");
+  });
+
+  it("picks a mod zip asset, avoiding source bundles", () => {
+    const release = {
+      tagName: "1.0",
+      name: null,
+      assets: [
+        { name: "SourceCode.zip", url: "https://x/src.zip", size: 0 },
+        { name: "CoolMod-1.0.zip", url: "https://x/mod.zip", size: 0 },
+      ],
+    };
+    expect(pickReleaseModAsset(release)?.name).toBe("CoolMod-1.0.zip");
+  });
+
+  it("returns null when a release has no assets", () => {
+    expect(pickReleaseModAsset({ tagName: "1.0", name: null, assets: [] })).toBeNull();
   });
 });

@@ -137,6 +137,28 @@ async function checkUpdates(): Promise<void> {
   state.checking = false;
 }
 
+async function updateMod(uniqueId: string): Promise<void> {
+  if (!api) return;
+  await withError(async () => {
+    state.scan = await api.updateMod(uniqueId);
+    await loadProfiles();
+  });
+  // Re-check so the just-updated mod's badge refreshes.
+  await checkUpdates();
+}
+
+async function updateAllMods(): Promise<void> {
+  const outdated = [...state.updates.values()].filter((u) => u.status === "update-available");
+  for (const u of outdated) {
+    if (!api) break;
+    await withError(async () => {
+      state.scan = await api.updateMod(u.uniqueId);
+    });
+  }
+  await loadProfiles();
+  await checkUpdates();
+}
+
 async function uninstallMod(relativePath: string): Promise<void> {
   if (!api) return;
   await withError(async () => {
@@ -263,6 +285,8 @@ export function useStore() {
     pickFolder,
     installFromFile,
     checkUpdates,
+    updateMod,
+    updateAllMods,
     uninstallMod,
     revealMod,
     openModsFolder,

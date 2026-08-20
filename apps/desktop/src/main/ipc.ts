@@ -1,6 +1,13 @@
 import { join } from "node:path";
 import { BrowserWindow, dialog, ipcMain, app, shell } from "electron";
-import { captureProfileState, type NxmLink } from "@sdm/core";
+import {
+  captureProfileState,
+  githubLatestReleaseUrl,
+  parseGithubRelease,
+  pickReleaseModAsset,
+  type NxmLink,
+} from "@sdm/core";
+import { fetchJson } from "./services/download.js";
 import type {
   AppInfo,
   AppSettings,
@@ -80,6 +87,30 @@ async function syncActiveProfile(modsPath: string): Promise<void> {
     activeId,
     captureProfileState(mods.map((m) => ({ relativePath: m.relativePath, enabled: m.enabled }))),
   );
+}
+
+const GITHUB_UA = { "user-agent": "StardewModManager" };
+
+/** Download an archive and install it, emitting progress and syncing the profile. */
+async function downloadAndInstall(
+  modsPath: string,
+  url: string,
+  archiveName: string,
+  headers?: Record<string, string>,
+): Promise<void> {
+  const buffer = await downloadToBuffer(
+    url,
+    (receivedBytes, totalBytes) =>
+      emitProgress({ phase: "downloading", label: archiveName, receivedBytes, totalBytes }),
+    headers,
+  );
+  emitProgress({ phase: "installing", label: archiveName });
+  const installed = await installArchive(buffer, { modsPath, archiveName });
+  await syncActiveProfile(modsPath);
+  emitProgress({
+    phase: "done",
+    installed: installed.map((m) => ({ installName: m.installName, name: m.name, version: m.version })),
+  });
 }
 
 /** Choose which file to install: the marked primary, else a MAIN file, else the first. */
@@ -199,6 +230,54 @@ export function registerIpc(windowGetter: GetWindow): void {
   ipcMain.handle("mods:checkUpdates", async (): Promise<UpdateInfo[]> => {
     const { mods, smapi } = await scan();
     return checkUpdates(mods, smapi);
+  });
+
+  ipcMain.handle("mods:update", async (_event, uniqueId: string): Promise<ScanResult> => {
+    const game = await resolveGame();
+    if (!game) throw new Error("Locate your Stardew Valley folder first.");
+    const mod = (await scanMods(game.modsPath)).find((m) => m.manifest?.uniqueId === uniqueId);
+    if (!mod?.manifest) throw new Error("Mod not found.");
+
+    const settings = await readSettings();
+    const keys = mod.manifest.updateKeys;
+    const cf = keys.find((k) => k.site === "CurseForge");
+    const gh = keys.find((k) => k.site === "GitHub");
+    const nx = keys.find((k) => k.site === "Nexus");
+
+    emitProgress({ phase: "resolving", label: mod.manifest.name });
+    try {
+      if (cf && settings.curseForgeApiKey) {
+        const modId = Number(cf.id);
+        const files = await curseforge.listFiles(settings.curseForgeApiKey, modId);
+        const fileId = files[0]?.fileId;
+        if (fileId == null) throw new Error("No CurseForge file found for this mod.");
+        const url = await curseforge.resolveDownloadUrl(settings.curseForgeApiKey, modId, fileId);
+        if (!url) throw new Error("The author disabled CurseForge third-party downloads.");
+        await downloadAndInstall(game.modsPath, url, url.split("/").pop() ?? `${uniqueId}.zip`);
+      } else if (gh) {
+        const release = parseGithubRelease(await fetchJson(githubLatestReleaseUrl(gh.id), GITHUB_UA));
+        const asset = release ? pickReleaseModAsset(release) : null;
+        if (!asset) throw new Error("No downloadable asset in the latest GitHub release.");
+        await downloadAndInstall(game.modsPath, asset.url, asset.name, GITHUB_UA);
+      } else if (nx && settings.nexusApiKey && settings.nexusUser?.isPremium) {
+        const modId = Number(nx.id);
+        const file = pickPrimaryFile(await listFiles(settings.nexusApiKey, modId));
+        if (!file) throw new Error("No Nexus file found for this mod.");
+        const url = await resolveDownloadUrl(settings.nexusApiKey, { modId, fileId: file.fileId });
+        await downloadAndInstall(game.modsPath, url, file.fileName ?? `mod-${modId}.zip`);
+      } else if (nx) {
+        void shell.openExternal(`https://www.nexusmods.com/stardewvalley/mods/${nx.id}`);
+        emitProgress({
+          phase: "error",
+          error: "Free Nexus downloads start on the website — opened the mod page; click Mod Manager Download.",
+        });
+      } else {
+        throw new Error("No supported update source (needs a CurseForge/GitHub key, or Nexus Premium).");
+      }
+    } catch (err) {
+      emitProgress({ phase: "error", error: (err as Error).message });
+    }
+    return scan();
   });
 
   ipcMain.handle("mods:uninstall", async (_event, relativePath: string): Promise<ScanResult> => {

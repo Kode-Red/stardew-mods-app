@@ -66,6 +66,15 @@ function openUrl(url: string): void {
         <UButton icon="i-lucide-download" color="primary" :loading="store.state.checking" :disabled="!isElectron || store.mods.value.length === 0" @click="store.checkUpdates">
           Check for updates
         </UButton>
+        <UButton
+          v-if="store.updatableCount.value > 0"
+          icon="i-lucide-arrow-up-circle"
+          color="primary"
+          variant="soft"
+          @click="store.updateAllMods()"
+        >
+          Update all ({{ store.updatableCount.value }})
+        </UButton>
       </div>
     </div>
 
@@ -109,6 +118,17 @@ function openUrl(url: string): void {
             {{ statusMeta[updateFor(mod)!.status].label }}
             <template v-if="updateFor(mod)!.status === 'update-available'">→ {{ updateFor(mod)!.latestVersion }}</template>
           </UBadge>
+          <UButton
+            v-if="updateFor(mod)!.status === 'update-available'"
+            icon="i-lucide-arrow-up-circle"
+            color="primary"
+            variant="soft"
+            size="xs"
+            :disabled="!mod.manifest"
+            @click="mod.manifest && store.updateMod(mod.manifest.uniqueId)"
+          >
+            Update
+          </UButton>
           <UButton
             v-if="updateFor(mod)!.status === 'update-available' && updateFor(mod)!.url"
             icon="i-lucide-external-link"

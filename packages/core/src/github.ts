@@ -59,6 +59,17 @@ export function pickSmapiInstallerAsset(release: GithubRelease): GithubAsset | n
   );
 }
 
+/** Pick the mod archive from a release: prefer a .zip, avoiding source bundles. */
+export function pickReleaseModAsset(release: GithubRelease): GithubAsset | null {
+  const zips = release.assets.filter((a) => /\.zip$/i.test(a.name));
+  return (
+    zips.find((a) => !/source|src/i.test(a.name)) ??
+    zips[0] ??
+    release.assets[0] ??
+    null
+  );
+}
+
 /** Strip a leading `v` from a release tag to get a plain version. */
 export function versionFromTag(tag: string): string {
   return tag.replace(/^v/i, "");

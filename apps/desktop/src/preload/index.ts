@@ -25,6 +25,8 @@ const api: DesktopApi = {
   setModEnabled: (relativePath: string, enabled: boolean): Promise<ScanResult> =>
     ipcRenderer.invoke("mods:setEnabled", relativePath, enabled),
   checkUpdates: (): Promise<UpdateInfo[]> => ipcRenderer.invoke("mods:checkUpdates"),
+  updateMod: (uniqueId: string): Promise<ScanResult> =>
+    ipcRenderer.invoke("mods:update", uniqueId),
   uninstallMod: (relativePath: string): Promise<ScanResult> =>
     ipcRenderer.invoke("mods:uninstall", relativePath),
   revealMod: (relativePath: string): Promise<void> =>
