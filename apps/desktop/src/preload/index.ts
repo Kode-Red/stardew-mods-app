@@ -32,6 +32,12 @@ const api: DesktopApi = {
   revealMod: (relativePath: string): Promise<void> =>
     ipcRenderer.invoke("mods:reveal", relativePath),
   openModsFolder: (): Promise<void> => ipcRenderer.invoke("mods:openFolder"),
+  setModCategory: (uniqueId: string, category: string): Promise<AppSettings> =>
+    ipcRenderer.invoke("mods:setCategory", uniqueId, category),
+  createFolder: (name: string): Promise<AppSettings> => ipcRenderer.invoke("mods:createFolder", name),
+  renameFolder: (oldName: string, newName: string): Promise<AppSettings> =>
+    ipcRenderer.invoke("mods:renameFolder", oldName, newName),
+  deleteFolder: (name: string): Promise<AppSettings> => ipcRenderer.invoke("mods:deleteFolder", name),
 
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
   setNexusApiKey: (key: string): Promise<AppSettings> =>
@@ -55,6 +61,9 @@ const api: DesktopApi = {
     ipcRenderer.invoke("profiles:delete", id),
   activateProfile: (id: string): Promise<ScanResult> =>
     ipcRenderer.invoke("profiles:activate", id),
+  exportProfile: (): Promise<void> => ipcRenderer.invoke("profile:export"),
+  importProfile: (): Promise<ScanResult> => ipcRenderer.invoke("profile:import"),
+  backupMods: (): Promise<void> => ipcRenderer.invoke("mods:backup"),
   launchGame: (mode: LaunchMode): Promise<void> => ipcRenderer.invoke("game:launch", mode),
 
   browseStore: (kind: NexusBrowseKind): Promise<NexusModSummary[]> =>

@@ -86,6 +86,10 @@ export interface AppSettings {
   hasNexusApiKey: boolean;
   nexusUser: NexusAccount | null;
   hasCurseForgeApiKey: boolean;
+  /** Mod UniqueID -> folder/category name. */
+  modCategories: Record<string, string>;
+  /** User-created folder names (may contain no mods). */
+  modFolders: string[];
 }
 
 export interface InstalledModSummary {
@@ -121,6 +125,11 @@ export interface DesktopApi {
   revealMod(relativePath: string): Promise<void>;
   /** Open the game's Mods/ folder in the OS file manager. */
   openModsFolder(): Promise<void>;
+  /** Assign a mod (by UniqueID) to a folder/category; empty string clears it. */
+  setModCategory(uniqueId: string, category: string): Promise<AppSettings>;
+  createFolder(name: string): Promise<AppSettings>;
+  renameFolder(oldName: string, newName: string): Promise<AppSettings>;
+  deleteFolder(name: string): Promise<AppSettings>;
 
   getSettings(): Promise<AppSettings>;
   /** Validate + store a Nexus personal API key. Returns updated settings. */
@@ -138,6 +147,12 @@ export interface DesktopApi {
   deleteProfile(id: string): Promise<ProfilesState>;
   /** Switch profiles: reconcile disk to the profile, then return the fresh scan. */
   activateProfile(id: string): Promise<ScanResult>;
+  /** Save the active profile as a shareable recipe file (a modpack, not the mod files). */
+  exportProfile(): Promise<void>;
+  /** Import a shared recipe: install missing mods from their sources, build the profile. */
+  importProfile(): Promise<ScanResult>;
+  /** Zip the whole Mods/ folder to a file (personal backup / moving machines). */
+  backupMods(): Promise<void>;
   launchGame(mode: LaunchMode): Promise<void>;
 
   /** Browse a Nexus list (trending / latest added / latest updated). */

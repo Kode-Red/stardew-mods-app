@@ -175,6 +175,34 @@ function openModsFolder(): void {
   void api?.openModsFolder();
 }
 
+async function setModCategory(uniqueId: string, category: string): Promise<void> {
+  if (!api) return;
+  await withError(async () => {
+    state.settings = await api.setModCategory(uniqueId, category);
+  });
+}
+
+async function createFolder(name: string): Promise<void> {
+  if (!api) return;
+  await withError(async () => {
+    state.settings = await api.createFolder(name);
+  });
+}
+
+async function renameFolder(oldName: string, newName: string): Promise<void> {
+  if (!api) return;
+  await withError(async () => {
+    state.settings = await api.renameFolder(oldName, newName);
+  });
+}
+
+async function deleteFolder(name: string): Promise<void> {
+  if (!api) return;
+  await withError(async () => {
+    state.settings = await api.deleteFolder(name);
+  });
+}
+
 async function saveNexusKey(key: string): Promise<boolean> {
   if (!api) return false;
   const result = await withError(async () => {
@@ -212,6 +240,25 @@ async function deleteProfile(id: string): Promise<void> {
   await withError(async () => {
     state.profiles = await api.deleteProfile(id);
   });
+}
+
+async function exportProfile(): Promise<void> {
+  if (!api) return;
+  await withError(() => api.exportProfile());
+}
+
+async function importProfile(): Promise<void> {
+  if (!api) return;
+  await withError(async () => {
+    state.scan = await api.importProfile();
+    await loadProfiles();
+    state.updates = new Map();
+  });
+}
+
+async function backupMods(): Promise<void> {
+  if (!api) return;
+  await withError(() => api.backupMods());
 }
 
 async function launch(mode: LaunchMode): Promise<void> {
@@ -290,11 +337,18 @@ export function useStore() {
     uninstallMod,
     revealMod,
     openModsFolder,
+    setModCategory,
+    createFolder,
+    renameFolder,
+    deleteFolder,
     saveNexusKey,
     activateProfile,
     createProfile,
     renameProfile,
     deleteProfile,
+    exportProfile,
+    importProfile,
+    backupMods,
     launch,
     browseStore,
     getStoreMod,

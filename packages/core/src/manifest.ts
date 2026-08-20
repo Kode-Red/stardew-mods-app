@@ -10,33 +10,37 @@
  */
 
 import { z } from "zod";
-import { isValidVersion } from "./version.js";
 import { parseUpdateKeys, type UpdateKey } from "./update-keys.js";
 
-const versionString = z
-  .string()
-  .refine((v) => isValidVersion(v), { message: "invalid semantic version" });
+// Versions are kept lenient on purpose: a manager should still list and organize
+// a mod whose version string isn't textbook semver. Version *comparisons* handle
+// unparseable values gracefully (they resolve to "unknown"), so we only require a
+// non-empty string here rather than rejecting the whole manifest.
+const versionString = z.string().min(1);
 
 const dependencySchema = z.object({
   UniqueID: z.string().min(1),
-  MinimumVersion: versionString.optional(),
+  MinimumVersion: z.string().optional(),
   IsRequired: z.boolean().optional(),
 });
 
 const contentPackForSchema = z.object({
   UniqueID: z.string().min(1),
-  MinimumVersion: versionString.optional(),
+  MinimumVersion: z.string().optional(),
 });
+
+// Author can be a string or (rarely) an array/object in the wild; coerce loosely.
+const authorSchema = z.union([z.string(), z.array(z.string()), z.record(z.unknown())]);
 
 export const manifestSchema = z
   .object({
     Name: z.string().min(1),
-    Author: z.string().optional(),
+    Author: authorSchema.optional(),
     Version: versionString,
     Description: z.string().optional(),
     UniqueID: z.string().min(1),
     EntryDll: z.string().optional(),
-    MinimumApiVersion: versionString.optional(),
+    MinimumApiVersion: z.string().optional(),
     UpdateKeys: z.array(z.string()).optional(),
     Dependencies: z.array(dependencySchema).optional(),
     ContentPackFor: contentPackForSchema.optional(),
@@ -112,10 +116,16 @@ function stripJsonComments(input: string): string {
   return out;
 }
 
+function normaliseAuthor(author: RawManifest["Author"]): string | null {
+  if (typeof author === "string") return author;
+  if (Array.isArray(author)) return author.join(", ");
+  return null;
+}
+
 function normalise(raw: RawManifest): Manifest {
   return {
     name: raw.Name,
-    author: raw.Author ?? null,
+    author: normaliseAuthor(raw.Author),
     version: raw.Version,
     description: raw.Description ?? null,
     uniqueId: raw.UniqueID,

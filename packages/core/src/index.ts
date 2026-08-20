@@ -8,5 +8,6 @@ export * from "./nxm.js";
 export * from "./install-plan.js";
 export * from "./nexus.js";
 export * from "./profiles.js";
+export * from "./profile-recipe.js";
 export * from "./github.js";
 export * from "./curseforge.js";

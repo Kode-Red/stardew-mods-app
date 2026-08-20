@@ -11,6 +11,10 @@ export interface Settings {
   curseForgeApiKey?: string;
   profiles?: Profile[];
   activeProfileId?: string;
+  /** Mod UniqueID -> user-assigned folder/category name. */
+  modCategories?: Record<string, string>;
+  /** User-created folder names (may be empty of mods). */
+  modFolders?: string[];
 }
 
 function settingsFile(): string {

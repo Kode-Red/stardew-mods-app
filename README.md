@@ -104,7 +104,9 @@ the future web app alike.
    (personal key) ✅, CurseForge (API key + search, respects each project's
    third-party distribution toggle) ✅. Next: .rar/.7z support.
 4. **App shell & profiles** — frameless title bar ✅, sidebar/topbar shell ✅,
-   switchable mod profiles ✅, Launch modded / vanilla ✅.
+   switchable mod profiles ✅, Launch modded / vanilla ✅, **shareable modpack
+   recipes** (export/import a mod list, re-downloaded from source — no files
+   redistributed) ✅.
 5. **Mods Store** — browse Nexus trending/latest ✅, mod-detail page ✅, CurseForge
    search ✅, source switch ✅, download + install ✅ (Nexus premium direct / free
    via nxm; CurseForge respecting the distribution toggle).

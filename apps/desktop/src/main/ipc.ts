@@ -1,13 +1,15 @@
 import { join } from "node:path";
-import { BrowserWindow, dialog, ipcMain, app, shell } from "electron";
+import { writeFile, readFile } from "node:fs/promises";
 import {
+  buildRecipe,
+  canonicalModKey,
   captureProfileState,
-  githubLatestReleaseUrl,
-  parseGithubRelease,
-  pickReleaseModAsset,
+  parseRecipe,
+  parseUpdateKeys,
+  serializeRecipe,
   type NxmLink,
 } from "@sdm/core";
-import { fetchJson } from "./services/download.js";
+import { BrowserWindow, dialog, ipcMain, app, shell } from "electron";
 import type {
   AppInfo,
   AppSettings,
@@ -46,6 +48,8 @@ import { applyProfile } from "./services/apply-profile.js";
 import { uninstallMod } from "./services/mod-actions.js";
 import { launchGame } from "./services/launch.js";
 import { installSmapi } from "./services/smapi-installer.js";
+import { resolveSourceDownload } from "./services/source-install.js";
+import { zipFolder } from "./services/backup.js";
 import * as curseforge from "./services/curseforge-client.js";
 
 type GetWindow = () => BrowserWindow | null;
@@ -89,21 +93,12 @@ async function syncActiveProfile(modsPath: string): Promise<void> {
   );
 }
 
-const GITHUB_UA = { "user-agent": "StardewModManager" };
-
-/** Download an archive and install it, emitting progress and syncing the profile. */
-async function downloadAndInstall(
+/** Install an already-downloaded archive: emit progress, sync the active profile. */
+async function installBuffer(
   modsPath: string,
-  url: string,
+  buffer: Uint8Array,
   archiveName: string,
-  headers?: Record<string, string>,
 ): Promise<void> {
-  const buffer = await downloadToBuffer(
-    url,
-    (receivedBytes, totalBytes) =>
-      emitProgress({ phase: "downloading", label: archiveName, receivedBytes, totalBytes }),
-    headers,
-  );
   emitProgress({ phase: "installing", label: archiveName });
   const installed = await installArchive(buffer, { modsPath, archiveName });
   await syncActiveProfile(modsPath);
@@ -129,6 +124,8 @@ async function toAppSettings(): Promise<AppSettings> {
     hasNexusApiKey: !!settings.nexusApiKey,
     nexusUser: settings.nexusUser ?? null,
     hasCurseForgeApiKey: !!settings.curseForgeApiKey,
+    modCategories: settings.modCategories ?? {},
+    modFolders: settings.modFolders ?? [],
   };
 }
 
@@ -239,34 +236,15 @@ export function registerIpc(windowGetter: GetWindow): void {
     if (!mod?.manifest) throw new Error("Mod not found.");
 
     const settings = await readSettings();
-    const keys = mod.manifest.updateKeys;
-    const cf = keys.find((k) => k.site === "CurseForge");
-    const gh = keys.find((k) => k.site === "GitHub");
-    const nx = keys.find((k) => k.site === "Nexus");
-
     emitProgress({ phase: "resolving", label: mod.manifest.name });
     try {
-      if (cf && settings.curseForgeApiKey) {
-        const modId = Number(cf.id);
-        const files = await curseforge.listFiles(settings.curseForgeApiKey, modId);
-        const fileId = files[0]?.fileId;
-        if (fileId == null) throw new Error("No CurseForge file found for this mod.");
-        const url = await curseforge.resolveDownloadUrl(settings.curseForgeApiKey, modId, fileId);
-        if (!url) throw new Error("The author disabled CurseForge third-party downloads.");
-        await downloadAndInstall(game.modsPath, url, url.split("/").pop() ?? `${uniqueId}.zip`);
-      } else if (gh) {
-        const release = parseGithubRelease(await fetchJson(githubLatestReleaseUrl(gh.id), GITHUB_UA));
-        const asset = release ? pickReleaseModAsset(release) : null;
-        if (!asset) throw new Error("No downloadable asset in the latest GitHub release.");
-        await downloadAndInstall(game.modsPath, asset.url, asset.name, GITHUB_UA);
-      } else if (nx && settings.nexusApiKey && settings.nexusUser?.isPremium) {
-        const modId = Number(nx.id);
-        const file = pickPrimaryFile(await listFiles(settings.nexusApiKey, modId));
-        if (!file) throw new Error("No Nexus file found for this mod.");
-        const url = await resolveDownloadUrl(settings.nexusApiKey, { modId, fileId: file.fileId });
-        await downloadAndInstall(game.modsPath, url, file.fileName ?? `mod-${modId}.zip`);
-      } else if (nx) {
-        void shell.openExternal(`https://www.nexusmods.com/stardewvalley/mods/${nx.id}`);
+      const result = await resolveSourceDownload(settings, mod.manifest.updateKeys, (r, t, label) =>
+        emitProgress({ phase: "downloading", label, receivedBytes: r, totalBytes: t }),
+      );
+      if (result.kind === "archive") {
+        await installBuffer(game.modsPath, result.buffer, result.archiveName);
+      } else if (result.kind === "site") {
+        void shell.openExternal(result.url);
         emitProgress({
           phase: "error",
           error: "Free Nexus downloads start on the website — opened the mod page; click Mod Manager Download.",
@@ -299,6 +277,47 @@ export function registerIpc(windowGetter: GetWindow): void {
     if (game) await shell.openPath(game.modsPath);
   });
 
+  ipcMain.handle("mods:setCategory", async (_event, uniqueId: string, category: string): Promise<AppSettings> => {
+    const settings = await readSettings();
+    const map = { ...(settings.modCategories ?? {}) };
+    const trimmed = category.trim();
+    if (trimmed) map[uniqueId] = trimmed;
+    else delete map[uniqueId];
+    // Ensure a folder mods are dropped into is remembered even if later emptied.
+    const folders = trimmed
+      ? [...new Set([...(settings.modFolders ?? []), trimmed])]
+      : settings.modFolders ?? [];
+    await writeSettings({ modCategories: map, modFolders: folders });
+    return toAppSettings();
+  });
+
+  ipcMain.handle("mods:createFolder", async (_event, name: string): Promise<AppSettings> => {
+    const settings = await readSettings();
+    const n = name.trim();
+    if (n) await writeSettings({ modFolders: [...new Set([...(settings.modFolders ?? []), n])] });
+    return toAppSettings();
+  });
+
+  ipcMain.handle("mods:renameFolder", async (_event, oldName: string, newName: string): Promise<AppSettings> => {
+    const settings = await readSettings();
+    const nn = newName.trim();
+    if (!nn) return toAppSettings();
+    const folders = [...new Set((settings.modFolders ?? []).map((f) => (f === oldName ? nn : f)))];
+    const cats = { ...(settings.modCategories ?? {}) };
+    for (const id of Object.keys(cats)) if (cats[id] === oldName) cats[id] = nn;
+    await writeSettings({ modFolders: folders, modCategories: cats });
+    return toAppSettings();
+  });
+
+  ipcMain.handle("mods:deleteFolder", async (_event, name: string): Promise<AppSettings> => {
+    const settings = await readSettings();
+    const folders = (settings.modFolders ?? []).filter((f) => f !== name);
+    const cats = { ...(settings.modCategories ?? {}) };
+    for (const id of Object.keys(cats)) if (cats[id] === name) delete cats[id];
+    await writeSettings({ modFolders: folders, modCategories: cats });
+    return toAppSettings();
+  });
+
   ipcMain.handle("settings:get", (): Promise<AppSettings> => toAppSettings());
 
   ipcMain.handle("settings:setNexusApiKey", async (_event, key: string): Promise<AppSettings> => {
@@ -316,7 +335,8 @@ export function registerIpc(windowGetter: GetWindow): void {
 
   ipcMain.handle("settings:setCurseForgeApiKey", async (_event, key: string): Promise<AppSettings> => {
     const trimmed = key.trim();
-    if (trimmed && !(await curseforge.validateKey(trimmed))) {
+    // Only block on a genuine auth rejection; save on "unknown" (network/endpoint hiccup).
+    if (trimmed && (await curseforge.validateKey(trimmed)) === "invalid") {
       throw new Error("That CurseForge API key was rejected. Check it and try again.");
     }
     await writeSettings({ curseForgeApiKey: trimmed || undefined });
@@ -438,6 +458,130 @@ export function registerIpc(windowGetter: GetWindow): void {
     const game = await resolveGame();
     if (!game) throw new Error("Locate your Stardew Valley folder first.");
     await launchGame(game.path, mode);
+  });
+
+  ipcMain.handle("profile:export", async (event): Promise<void> => {
+    const game = await resolveGame();
+    const mods = game ? await scanMods(game.modsPath) : [];
+    const { profiles, activeId } = await getProfiles();
+    const active = profiles.find((p) => p.id === activeId);
+    const recipe = buildRecipe(
+      active?.name ?? "Profile",
+      mods.map((m) => ({ manifest: m.manifest, enabled: m.enabled })),
+    );
+
+    const window = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+    const safeName = (active?.name ?? "profile").replace(/[^a-z0-9-_ ]/gi, "_");
+    const options: Electron.SaveDialogOptions = {
+      defaultPath: `${safeName}.sdmprofile.json`,
+      filters: [{ name: "Shared profile", extensions: ["json"] }],
+    };
+    const result = window
+      ? await dialog.showSaveDialog(window, options)
+      : await dialog.showSaveDialog(options);
+    if (result.canceled || !result.filePath) return;
+    await writeFile(result.filePath, serializeRecipe(recipe), "utf8");
+  });
+
+  ipcMain.handle("mods:backup", async (event): Promise<void> => {
+    const game = await resolveGame();
+    if (!game) throw new Error("Locate your Stardew Valley folder first.");
+
+    const window = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+    const stamp = new Date().toISOString().slice(0, 10);
+    const options: Electron.SaveDialogOptions = {
+      defaultPath: `stardew-mods-backup-${stamp}.zip`,
+      filters: [{ name: "Zip archive", extensions: ["zip"] }],
+    };
+    const result = window
+      ? await dialog.showSaveDialog(window, options)
+      : await dialog.showSaveDialog(options);
+    if (result.canceled || !result.filePath) return;
+
+    emitProgress({ phase: "installing", label: "Backing up your Mods folder…" });
+    try {
+      const buffer = await zipFolder(game.modsPath);
+      await writeFile(result.filePath, buffer);
+      emitProgress({
+        phase: "done",
+        installed: [{ installName: "Backup", name: "Mods folder backed up", version: null }],
+      });
+    } catch (err) {
+      emitProgress({ phase: "error", error: (err as Error).message });
+    }
+  });
+
+  ipcMain.handle("profile:import", async (event): Promise<ScanResult> => {
+    const game = await resolveGame();
+    if (!game) throw new Error("Locate your Stardew Valley folder first.");
+
+    const window = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+    const options: Electron.OpenDialogOptions = {
+      properties: ["openFile"],
+      filters: [{ name: "Shared profile", extensions: ["json"] }],
+    };
+    const picked = window
+      ? await dialog.showOpenDialog(window, options)
+      : await dialog.showOpenDialog(options);
+    if (picked.canceled || picked.filePaths.length === 0) return scan();
+
+    let recipe;
+    try {
+      recipe = parseRecipe(await readFile(picked.filePaths[0]!, "utf8"));
+    } catch (err) {
+      emitProgress({ phase: "error", error: (err as Error).message });
+      return scan();
+    }
+
+    const settings = await readSettings();
+    const installedIds = new Set(
+      (await scanMods(game.modsPath))
+        .map((m) => m.manifest?.uniqueId)
+        .filter((id): id is string => !!id),
+    );
+
+    const failures: string[] = [];
+    for (const recipeMod of recipe.mods) {
+      if (installedIds.has(recipeMod.uniqueId)) continue;
+      emitProgress({ phase: "resolving", label: recipeMod.name });
+      try {
+        const result = await resolveSourceDownload(
+          settings,
+          parseUpdateKeys(recipeMod.updateKeys),
+          (r, t, label) => emitProgress({ phase: "downloading", label, receivedBytes: r, totalBytes: t }),
+        );
+        if (result.kind === "archive") {
+          emitProgress({ phase: "installing", label: recipeMod.name });
+          await installArchive(result.buffer, { modsPath: game.modsPath, archiveName: result.archiveName });
+        } else {
+          failures.push(recipeMod.name);
+        }
+      } catch {
+        failures.push(recipeMod.name);
+      }
+    }
+
+    // Build the new profile's enabled set from the recipe, matching by UniqueID.
+    const fresh = await scanMods(game.modsPath);
+    const wantIds = new Set(recipe.mods.map((m) => m.uniqueId));
+    const enabledKeys = fresh
+      .filter((m) => m.manifest && wantIds.has(m.manifest.uniqueId))
+      .map((m) => canonicalModKey(m.relativePath));
+    await createProfile(recipe.name, enabledKeys);
+    await applyProfile(game.modsPath, enabledKeys);
+
+    if (failures.length > 0) {
+      emitProgress({
+        phase: "error",
+        error: `Imported "${recipe.name}", but couldn't auto-install: ${failures.join(", ")}. Get those from their source.`,
+      });
+    } else {
+      emitProgress({
+        phase: "done",
+        installed: [{ installName: recipe.name, name: `Imported ${recipe.mods.length} mods`, version: null }],
+      });
+    }
+    return scan();
   });
 
   ipcMain.handle("smapi:install", async (): Promise<ScanResult> => {

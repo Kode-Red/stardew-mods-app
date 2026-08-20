@@ -64,10 +64,15 @@ describe("parseManifest", () => {
     expect(m.name).toBe("http://x // y");
   });
 
-  it("throws on an invalid version", () => {
-    expect(() =>
-      parseManifest('{"Name":"X","Version":"bad","UniqueID":"a.b"}'),
-    ).toThrow(ManifestParseError);
+  it("keeps an odd version string instead of rejecting the manifest", () => {
+    // A manager should still list a mod whose version isn't textbook semver.
+    const m = parseManifest('{"Name":"X","Version":"1.0.0.0","UniqueID":"a.b"}');
+    expect(m.version).toBe("1.0.0.0");
+  });
+
+  it("coerces a non-string author", () => {
+    const m = parseManifest('{"Name":"X","Version":"1.0.0","UniqueID":"a.b","Author":["A","B"]}');
+    expect(m.author).toBe("A, B");
   });
 
   it("throws when required fields are missing", () => {

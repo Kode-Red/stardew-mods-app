@@ -31,13 +31,20 @@ async function cfGet(url: string, apiKey: string): Promise<unknown> {
   }
 }
 
-/** Validate a key by pinging the Stardew game endpoint. */
-export async function validateKey(apiKey: string): Promise<boolean> {
+export type KeyValidation = "ok" | "invalid" | "unknown";
+
+/**
+ * Validate a key against the games list (no game-id dependency). Returns:
+ * "ok" (accepted), "invalid" (401/403 — genuinely rejected), or "unknown"
+ * (network/other error — don't hard-reject on our uncertainty).
+ */
+export async function validateKey(apiKey: string): Promise<KeyValidation> {
   try {
-    await fetchJson(`${CURSEFORGE_API_BASE}/v1/games/669`, curseforgeHeaders(apiKey));
-    return true;
-  } catch {
-    return false;
+    await fetchJson(`${CURSEFORGE_API_BASE}/v1/games`, curseforgeHeaders(apiKey));
+    return "ok";
+  } catch (err) {
+    const status = (err as { status?: number }).status;
+    return status === 401 || status === 403 ? "invalid" : "unknown";
   }
 }
 

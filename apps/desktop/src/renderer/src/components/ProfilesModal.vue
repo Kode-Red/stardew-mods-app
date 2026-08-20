@@ -77,10 +77,40 @@ async function commitEdit(): Promise<void> {
           />
           <UButton icon="i-lucide-plus" :disabled="!newName.trim()" @click="create">Add</UButton>
         </div>
-        <p class="text-xs text-muted">
-          A new profile captures your currently-enabled mods. Switching a profile enables/disables
-          mods on disk to match it.
-        </p>
+
+        <div class="space-y-3 border-t border-default pt-4">
+          <div>
+            <p class="text-xs font-medium uppercase tracking-wide text-muted">Share with others</p>
+            <div class="mt-1.5 flex flex-wrap items-center gap-2">
+              <UButton icon="i-lucide-upload" color="neutral" variant="subtle" @click="store.exportProfile()">
+                Export as modpack
+              </UButton>
+              <UButton icon="i-lucide-download" color="neutral" variant="subtle" @click="store.importProfile()">
+                Import modpack
+              </UButton>
+            </div>
+            <p class="mt-1.5 text-xs text-muted">
+              A modpack is a shareable list of mods (not the files) — the legal way to share.
+              Importing re-downloads each mod from Nexus, CurseForge, or GitHub.
+            </p>
+          </div>
+
+          <div>
+            <p class="text-xs font-medium uppercase tracking-wide text-muted">Personal backup</p>
+            <div class="mt-1.5 flex flex-wrap items-center gap-2">
+              <UButton icon="i-lucide-archive" color="neutral" variant="subtle" @click="store.backupMods()">
+                Back up mods (.zip)
+              </UButton>
+              <UButton icon="i-lucide-archive-restore" color="neutral" variant="subtle" @click="store.installFromFile()">
+                Restore backup
+              </UButton>
+            </div>
+            <p class="mt-1.5 text-xs text-muted">
+              Zips your whole Mods folder so you can restore it or move machines without
+              re-downloading. For your own use — not for redistributing other people's mods.
+            </p>
+          </div>
+        </div>
       </div>
     </template>
   </UModal>
