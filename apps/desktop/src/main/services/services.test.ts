@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { scanMods } from "./mod-scanner.js";
 import { setModEnabled } from "./mod-toggle.js";
+import { uninstallMod } from "./mod-actions.js";
 import { validateGameFolder } from "./game-locator.js";
 import { detectSmapi } from "./smapi.js";
 
@@ -82,6 +83,26 @@ describe("setModEnabled", () => {
     await makeMod(mods, "ContentPatcher", manifest("Content Patcher", "Pathoschild.CP"));
     await setModEnabled(mods, "ContentPatcher", true); // already enabled
     expect(await readdir(mods)).toContain("ContentPatcher");
+  });
+});
+
+describe("uninstallMod", () => {
+  it("deletes the mod folder", async () => {
+    const mods = join(root, "Mods");
+    await makeMod(mods, "ContentPatcher", manifest("Content Patcher", "Pathoschild.CP"));
+    await makeMod(mods, "Other", manifest("Other", "me.other"));
+
+    await uninstallMod(mods, "ContentPatcher");
+
+    const remaining = (await scanMods(mods)).map((m) => m.folderName);
+    expect(remaining).toEqual(["Other"]);
+  });
+
+  it("refuses to delete outside the Mods folder", async () => {
+    const mods = join(root, "Mods");
+    await mkdir(mods, { recursive: true });
+    await expect(uninstallMod(mods, "../escape")).rejects.toThrow(/outside the Mods folder/);
+    await expect(uninstallMod(mods, "")).rejects.toThrow(/outside the Mods folder/);
   });
 });
 

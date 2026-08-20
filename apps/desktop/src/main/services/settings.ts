@@ -8,6 +8,7 @@ export interface Settings {
   gameSource?: GameSource;
   nexusApiKey?: string;
   nexusUser?: NexusAccount;
+  curseForgeApiKey?: string;
   profiles?: Profile[];
   activeProfileId?: string;
 }

@@ -1,14 +1,25 @@
 import {
+  nexusBrowseUrl,
   nexusDownloadLinkUrl,
   nexusHeaders,
   nexusModFilesUrl,
+  nexusModUrl,
   nexusValidateUrl,
   parseNexusDownloadLinks,
   parseNexusFiles,
+  parseNexusModDetail,
+  parseNexusModSummaries,
   parseNexusValidate,
+  type NexusBrowseKind,
   type NexusFile,
+  type NexusModDetail,
+  type NexusModSummary,
   type NexusUser,
 } from "@sdm/core";
+
+import { downloadToBuffer } from "./download.js";
+
+export { downloadToBuffer };
 
 export class NexusError extends Error {
   constructor(
@@ -47,6 +58,20 @@ export async function listFiles(apiKey: string, modId: number): Promise<NexusFil
   return parseNexusFiles(await getJson(nexusModFilesUrl(modId), apiKey));
 }
 
+export async function browseMods(
+  apiKey: string,
+  kind: NexusBrowseKind,
+): Promise<NexusModSummary[]> {
+  return parseNexusModSummaries(await getJson(nexusBrowseUrl(kind), apiKey));
+}
+
+export async function getModDetail(
+  apiKey: string,
+  modId: number,
+): Promise<NexusModDetail | null> {
+  return parseNexusModDetail(await getJson(nexusModUrl(modId), apiKey));
+}
+
 /** Resolve a direct CDN download URL for a mod file. */
 export async function resolveDownloadUrl(
   apiKey: string,
@@ -61,38 +86,4 @@ export async function resolveDownloadUrl(
     throw new NexusError("Nexus returned no download links for this file.");
   }
   return mirrors[0]!;
-}
-
-/** Download a URL into memory, reporting progress via `onProgress(received, total)`. */
-export async function downloadToBuffer(
-  url: string,
-  onProgress?: (received: number, total: number | null) => void,
-): Promise<Uint8Array> {
-  const res = await fetch(url);
-  if (!res.ok || !res.body) {
-    throw new NexusError(`Download failed (${res.status}).`, res.status);
-  }
-  const totalHeader = res.headers.get("content-length");
-  const total = totalHeader ? Number(totalHeader) : null;
-
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let received = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value) {
-      chunks.push(value);
-      received += value.length;
-      onProgress?.(received, total);
-    }
-  }
-
-  const out = new Uint8Array(received);
-  let offset = 0;
-  for (const chunk of chunks) {
-    out.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return out;
 }

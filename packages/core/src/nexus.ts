@@ -32,6 +32,12 @@ export function nexusModUrl(modId: number, game = STARDEW_DOMAIN): string {
   return `${NEXUS_API_BASE}/v1/games/${game}/mods/${modId}.json`;
 }
 
+export type NexusBrowseKind = "trending" | "latest_added" | "latest_updated";
+
+export function nexusBrowseUrl(kind: NexusBrowseKind, game = STARDEW_DOMAIN): string {
+  return `${NEXUS_API_BASE}/v1/games/${game}/mods/${kind}.json`;
+}
+
 export function nexusModFilesUrl(modId: number, game = STARDEW_DOMAIN): string {
   return `${NEXUS_API_BASE}/v1/games/${game}/mods/${modId}/files.json`;
 }
@@ -119,4 +125,75 @@ export function parseNexusDownloadLinks(raw: unknown): string[] {
   const parsed = downloadLinkSchema.safeParse(raw);
   if (!parsed.success) return [];
   return parsed.data.map((m) => m.URI);
+}
+
+const modSummarySchema = z.object({
+  mod_id: z.number(),
+  name: z.string().nullish(),
+  summary: z.string().nullish(),
+  version: z.string().nullish(),
+  author: z.string().nullish(),
+  uploaded_by: z.string().nullish(),
+  picture_url: z.string().nullish(),
+  endorsement_count: z.number().nullish(),
+  created_timestamp: z.number().nullish(),
+  updated_timestamp: z.number().nullish(),
+  available: z.boolean().nullish(),
+});
+
+export interface NexusModSummary {
+  modId: number;
+  name: string;
+  summary: string | null;
+  version: string | null;
+  author: string | null;
+  pictureUrl: string | null;
+  endorsements: number;
+  updatedTimestamp: number | null;
+}
+
+function toSummary(m: z.infer<typeof modSummarySchema>): NexusModSummary {
+  return {
+    modId: m.mod_id,
+    name: m.name ?? `Mod ${m.mod_id}`,
+    summary: m.summary ?? null,
+    version: m.version ?? null,
+    author: m.author ?? m.uploaded_by ?? null,
+    pictureUrl: m.picture_url ?? null,
+    endorsements: m.endorsement_count ?? 0,
+    updatedTimestamp: m.updated_timestamp ?? null,
+  };
+}
+
+/** Parse a browse list (trending / latest), dropping malformed and unavailable mods. */
+export function parseNexusModSummaries(raw: unknown): NexusModSummary[] {
+  if (!Array.isArray(raw)) return [];
+  const out: NexusModSummary[] = [];
+  for (const item of raw) {
+    const parsed = modSummarySchema.safeParse(item);
+    if (!parsed.success) continue;
+    if (parsed.data.available === false) continue;
+    out.push(toSummary(parsed.data));
+  }
+  return out;
+}
+
+export interface NexusModDetail extends NexusModSummary {
+  description: string | null;
+  createdTimestamp: number | null;
+}
+
+const modDetailSchema = modSummarySchema.extend({
+  description: z.string().nullish(),
+});
+
+/** Parse a single mod's detail response. */
+export function parseNexusModDetail(raw: unknown): NexusModDetail | null {
+  const parsed = modDetailSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  return {
+    ...toSummary(parsed.data),
+    description: parsed.data.description ?? null,
+    createdTimestamp: parsed.data.created_timestamp ?? null,
+  };
 }

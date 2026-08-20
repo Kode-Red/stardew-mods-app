@@ -38,6 +38,51 @@ export async function launchGame(gamePath: string, mode: LaunchMode): Promise<vo
     );
   }
 
-  const child = spawn(exe, [], { cwd: gamePath, detached: true, stdio: "ignore" });
-  child.unref();
+  await spawnDetached(exe, gamePath);
+}
+
+/**
+ * Launch an executable detached from the app.
+ *
+ * On Windows, SMAPI's `StardewModdingAPI.exe` is a **console** application. A
+ * plain detached spawn from a GUI process (Electron) doesn't give it a usable
+ * console, so it can exit immediately — which is why "Launch modded" failed
+ * while the GUI "Launch without mods" worked. Launching via `cmd /c start`
+ * mimics a double-click: the OS gives the process its own console and the
+ * correct working directory. On macOS/Linux a direct spawn is fine.
+ */
+export interface LaunchCommand {
+  command: string;
+  args: string[];
+}
+
+/** Build the platform-specific command that launches `exe` from `cwd`. */
+export function buildLaunchCommand(
+  exe: string,
+  cwd: string,
+  platform: NodeJS.Platform = process.platform,
+): LaunchCommand {
+  if (platform === "win32") {
+    // `start "" /d <cwd> <exe>` gives console apps (SMAPI) their own console.
+    return { command: "cmd.exe", args: ["/c", "start", "", "/d", cwd, exe] };
+  }
+  return { command: exe, args: [] };
+}
+
+function spawnDetached(exe: string, cwd: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const { command, args } = buildLaunchCommand(exe, cwd);
+
+    const child = spawn(command, args, {
+      cwd,
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    child.once("error", (err) => reject(new Error(`Couldn't start the game: ${err.message}`)));
+    child.once("spawn", () => {
+      child.unref();
+      resolve();
+    });
+  });
 }

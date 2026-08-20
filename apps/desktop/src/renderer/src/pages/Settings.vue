@@ -7,6 +7,10 @@ const nexusKeyInput = ref("");
 const savingKey = ref(false);
 const keyError = ref<string | null>(null);
 
+const cfKeyInput = ref("");
+const savingCfKey = ref(false);
+const cfKeyError = ref<string | null>(null);
+
 async function saveKey(): Promise<void> {
   savingKey.value = true;
   keyError.value = null;
@@ -14,6 +18,15 @@ async function saveKey(): Promise<void> {
   if (ok) nexusKeyInput.value = "";
   else if (store.state.error) keyError.value = store.state.error;
   savingKey.value = false;
+}
+
+async function saveCfKey(): Promise<void> {
+  savingCfKey.value = true;
+  cfKeyError.value = null;
+  const ok = await store.saveCurseForgeKey(cfKeyInput.value);
+  if (ok) cfKeyInput.value = "";
+  else if (store.state.error) cfKeyError.value = store.state.error;
+  savingCfKey.value = false;
 }
 
 function openUrl(url: string): void {
@@ -80,6 +93,34 @@ function openUrl(url: string): void {
         title="How downloads work"
         description="Free Nexus accounts start each download from the website's Mod Manager Download button (an nxm:// link this app handles). Premium accounts can also trigger downloads directly."
       />
+    </section>
+
+    <!-- CurseForge -->
+    <section class="space-y-3 rounded-xl border border-default p-5">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-medium">CurseForge API key</h2>
+        <UBadge v-if="store.state.settings?.hasCurseForgeApiKey" color="primary" variant="subtle">
+          Connected
+        </UBadge>
+      </div>
+      <div class="flex items-center gap-2">
+        <UInput
+          v-model="cfKeyInput"
+          type="password"
+          placeholder="Paste your CurseForge API key"
+          icon="i-lucide-key"
+          class="flex-1"
+          :disabled="!isElectron"
+        />
+        <UButton :loading="savingCfKey" :disabled="!isElectron" @click="saveCfKey">Save</UButton>
+      </div>
+      <p v-if="cfKeyError" class="text-sm text-error">{{ cfKeyError }}</p>
+      <p class="text-xs text-muted">
+        Get a key from the CurseForge developer console.
+        <UButton variant="link" size="xs" class="px-0" @click="openUrl('https://console.curseforge.com/')">
+          Open CurseForge console
+        </UButton>
+      </p>
     </section>
   </div>
 </template>

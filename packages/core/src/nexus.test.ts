@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  nexusBrowseUrl,
   nexusDownloadLinkUrl,
   nexusHeaders,
   nexusModFilesUrl,
   parseNexusDownloadLinks,
   parseNexusFiles,
+  parseNexusModDetail,
+  parseNexusModSummaries,
   parseNexusValidate,
 } from "./nexus.js";
 
@@ -57,5 +60,39 @@ describe("nexus response parsers", () => {
       ]),
     ).toEqual(["https://cdn/x.zip"]);
     expect(parseNexusDownloadLinks({})).toEqual([]);
+  });
+});
+
+describe("nexus browse", () => {
+  it("builds a browse URL", () => {
+    expect(nexusBrowseUrl("trending")).toBe(
+      "https://api.nexusmods.com/v1/games/stardewvalley/mods/trending.json",
+    );
+  });
+
+  it("parses summaries and skips unavailable/malformed entries", () => {
+    const list = parseNexusModSummaries([
+      { mod_id: 1, name: "A", author: "me", endorsement_count: 5, picture_url: "http://x/p.png" },
+      { mod_id: 2, name: "Hidden", available: false },
+      { nope: true },
+    ]);
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ modId: 1, name: "A", author: "me", endorsements: 5 });
+  });
+
+  it("falls back to uploaded_by for author and a default name", () => {
+    const [mod] = parseNexusModSummaries([{ mod_id: 9, uploaded_by: "up" }]);
+    expect(mod).toMatchObject({ name: "Mod 9", author: "up", endorsements: 0 });
+  });
+
+  it("parses mod detail with description", () => {
+    const detail = parseNexusModDetail({
+      mod_id: 3,
+      name: "Big Mod",
+      description: "<p>hi</p>",
+      created_timestamp: 100,
+    });
+    expect(detail).toMatchObject({ modId: 3, name: "Big Mod", description: "<p>hi</p>", createdTimestamp: 100 });
+    expect(parseNexusModDetail({ nope: true })).toBeNull();
   });
 });

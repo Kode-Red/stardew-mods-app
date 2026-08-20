@@ -6,6 +6,7 @@ import { setupNxmProtocol } from "./services/nxm-protocol.js";
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
+  const isMac = process.platform === "darwin";
   mainWindow = new BrowserWindow({
     width: 1180,
     height: 780,
@@ -14,6 +15,10 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     title: "Stardew Mod Manager",
+    // Frameless with a custom in-app title bar (matches the dark theme).
+    frame: false,
+    titleBarStyle: isMac ? "hiddenInset" : "hidden",
+    backgroundColor: "#0c0a09",
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       sandbox: false,
@@ -26,6 +31,11 @@ function createWindow(): void {
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+
+  const emitMaximized = (): void =>
+    mainWindow?.webContents.send("window:maximized", mainWindow.isMaximized());
+  mainWindow.on("maximize", emitMaximized);
+  mainWindow.on("unmaximize", emitMaximized);
 
   // Open external links in the user's browser, never inside the app window.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {

@@ -1,4 +1,13 @@
-import type { Manifest, UpdateStatus } from "@sdm/core";
+import type {
+  CurseforgeModSummary,
+  Manifest,
+  NexusBrowseKind,
+  NexusModDetail,
+  NexusModSummary,
+  UpdateStatus,
+} from "@sdm/core";
+
+export type { CurseforgeModSummary, NexusBrowseKind, NexusModDetail, NexusModSummary };
 
 /** How a game install was found. */
 export type GameSource = "steam" | "gog" | "manual" | "detected";
@@ -76,6 +85,7 @@ export interface NexusAccount {
 export interface AppSettings {
   hasNexusApiKey: boolean;
   nexusUser: NexusAccount | null;
+  hasCurseForgeApiKey: boolean;
 }
 
 export interface InstalledModSummary {
@@ -103,10 +113,18 @@ export interface DesktopApi {
   scanMods(): Promise<ScanResult>;
   setModEnabled(relativePath: string, enabled: boolean): Promise<ScanResult>;
   checkUpdates(): Promise<UpdateInfo[]>;
+  /** Delete a mod's folder, then return the fresh scan. */
+  uninstallMod(relativePath: string): Promise<ScanResult>;
+  /** Highlight a mod's folder in the OS file manager. */
+  revealMod(relativePath: string): Promise<void>;
+  /** Open the game's Mods/ folder in the OS file manager. */
+  openModsFolder(): Promise<void>;
 
   getSettings(): Promise<AppSettings>;
   /** Validate + store a Nexus personal API key. Returns updated settings. */
   setNexusApiKey(key: string): Promise<AppSettings>;
+  /** Validate + store a CurseForge API key. Returns updated settings. */
+  setCurseForgeApiKey(key: string): Promise<AppSettings>;
   /** Open a file picker and install the chosen archive. Returns the fresh scan. */
   installFromFile(): Promise<ScanResult>;
   /** Subscribe to download/install progress. Returns an unsubscribe function. */
@@ -119,4 +137,28 @@ export interface DesktopApi {
   /** Switch profiles: reconcile disk to the profile, then return the fresh scan. */
   activateProfile(id: string): Promise<ScanResult>;
   launchGame(mode: LaunchMode): Promise<void>;
+
+  /** Browse a Nexus list (trending / latest added / latest updated). */
+  browseStore(kind: NexusBrowseKind): Promise<NexusModSummary[]>;
+  getStoreMod(modId: number): Promise<NexusModDetail | null>;
+  /** Download + install a mod's primary file from Nexus (premium accounts). */
+  installStoreMod(modId: number): Promise<ScanResult>;
+
+  /** Search CurseForge for Stardew mods. */
+  searchStore(query: string): Promise<CurseforgeModSummary[]>;
+  /** Download + install a CurseForge mod's file (respects the distribution toggle). */
+  installCurseforgeMod(modId: number, fileId: number | null): Promise<ScanResult>;
+
+  /** Download + run the official SMAPI installer, then rescan. */
+  installSmapi(): Promise<ScanResult>;
+
+  window: WindowControls;
+}
+
+export interface WindowControls {
+  minimize(): void;
+  toggleMaximize(): void;
+  close(): void;
+  isMaximized(): Promise<boolean>;
+  onMaximizedChange(callback: (maximized: boolean) => void): () => void;
 }

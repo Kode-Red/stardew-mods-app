@@ -4,10 +4,11 @@ A mod manager for **Stardew Valley** — a desktop app that installs, updates, a
 organises SMAPI mods, plus a web companion for discovery and (eventually)
 first-party mod hosting. Built to fill the gap left by the current tooling.
 
-> **Status: Phases 3–4.** On top of Phase 2, the app installs from a local zip,
-> registers the `nxm://` handler, downloads from Nexus (personal API key), and
-> has a full app shell: sidebar nav, a **profile selector**, **Launch modded /
-> Launch without mods** buttons, and switchable mod **profiles**. CurseForge and
+> **Status: Phases 3–5.** On top of Phase 2, the app installs from a local zip,
+> registers the `nxm://` handler, downloads from Nexus (personal API key), has a
+> full app shell (frameless custom title bar, sidebar nav, **profile selector**,
+> **Launch modded / without mods**, switchable **profiles**), and a **Mods Store**
+> that browses Nexus (trending/latest) with a mod-detail page. CurseForge and
 > SMAPI bootstrap are next — see the roadmap below.
 
 ## Tech stack
@@ -31,9 +32,10 @@ apps/
                          update-check (SMAPI Web API), settings, archive (unzip),
                          installer, nexus-client, nxm-protocol
     src/preload/         contextBridge API exposed to the renderer as window.api
-    src/renderer/        Vue 3 app (Nuxt UI): sidebar+topbar shell, router pages
-                         (Dashboard, Mods Library, Downloads, Settings), a shared
-                         reactive store, and Profiles/Progress components.
+    src/renderer/        Vue 3 app (Nuxt UI): frameless title bar + sidebar shell,
+                         router pages (Dashboard, Mods Library, Mods Store, mod
+                         detail, Downloads, Settings), a shared reactive store,
+                         and Profiles/Progress components.
     src/shared/types.ts  IPC payload types shared by main + preload + renderer
 packages/
   core/             Domain engine: manifest parsing, version compare, compat.
@@ -94,16 +96,21 @@ the future web app alike.
 ## Roadmap
 
 1. **Foundations** — monorepo, `@sdm/core`, Electron + Nuxt UI shell. ✅
-2. **Read-only manager** — locate the Stardew install, scan `Mods/`, list mods,
-   enable/disable, and run update/compat checks via the [SMAPI Web API](https://smapi.io/). ✅
+2. **Mod manager** — locate the Stardew install, scan `Mods/`, list mods,
+   enable/disable, uninstall, reveal/open folders, and run update/compat checks
+   via the [SMAPI Web API](https://smapi.io/). ✅
 3. **Downloads** — install from local zip ✅, `nxm://` handler ✅, Nexus API
-   (personal key) ✅. Next: CurseForge (API key, respecting each project's
-   third-party distribution toggle); .rar/.7z support.
-4. **App shell & profiles** — sidebar/topbar shell ✅, switchable mod profiles ✅,
-   Launch modded / vanilla ✅.
-5. **SMAPI bootstrap** — guided install/update of SMAPI (LGPL-3.0; download the
-   official installer rather than repackaging).
-6. **Web companion + first-party hosting** — Nuxt portal, creator accounts,
+   (personal key) ✅, CurseForge (API key + search, respects each project's
+   third-party distribution toggle) ✅. Next: .rar/.7z support.
+4. **App shell & profiles** — frameless title bar ✅, sidebar/topbar shell ✅,
+   switchable mod profiles ✅, Launch modded / vanilla ✅.
+5. **Mods Store** — browse Nexus trending/latest ✅, mod-detail page ✅, CurseForge
+   search ✅, source switch ✅, download + install ✅ (Nexus premium direct / free
+   via nxm; CurseForge respecting the distribution toggle).
+6. **SMAPI bootstrap** — downloads the official SMAPI installer from GitHub and
+   runs it non-interactively (`--install --game-path`), with a folder-open
+   fallback; "Install SMAPI" button appears when SMAPI is missing. ✅
+7. **Web companion + first-party hosting** — Nuxt portal, creator accounts,
    uploads, moderation. Only mods the uploader authored.
 
 ## Licensing notes

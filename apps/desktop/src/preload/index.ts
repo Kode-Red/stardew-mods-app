@@ -2,10 +2,14 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type {
   AppInfo,
   AppSettings,
+  CurseforgeModSummary,
   DesktopApi,
   GameLocation,
   InstallProgress,
   LaunchMode,
+  NexusBrowseKind,
+  NexusModDetail,
+  NexusModSummary,
   ProfilesState,
   ScanResult,
   UpdateInfo,
@@ -21,10 +25,17 @@ const api: DesktopApi = {
   setModEnabled: (relativePath: string, enabled: boolean): Promise<ScanResult> =>
     ipcRenderer.invoke("mods:setEnabled", relativePath, enabled),
   checkUpdates: (): Promise<UpdateInfo[]> => ipcRenderer.invoke("mods:checkUpdates"),
+  uninstallMod: (relativePath: string): Promise<ScanResult> =>
+    ipcRenderer.invoke("mods:uninstall", relativePath),
+  revealMod: (relativePath: string): Promise<void> =>
+    ipcRenderer.invoke("mods:reveal", relativePath),
+  openModsFolder: (): Promise<void> => ipcRenderer.invoke("mods:openFolder"),
 
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
   setNexusApiKey: (key: string): Promise<AppSettings> =>
     ipcRenderer.invoke("settings:setNexusApiKey", key),
+  setCurseForgeApiKey: (key: string): Promise<AppSettings> =>
+    ipcRenderer.invoke("settings:setCurseForgeApiKey", key),
   installFromFile: (): Promise<ScanResult> => ipcRenderer.invoke("mods:installFromFile"),
   onInstallProgress: (callback: (progress: InstallProgress) => void): (() => void) => {
     const listener = (_event: IpcRendererEvent, progress: InstallProgress): void =>
@@ -43,6 +54,31 @@ const api: DesktopApi = {
   activateProfile: (id: string): Promise<ScanResult> =>
     ipcRenderer.invoke("profiles:activate", id),
   launchGame: (mode: LaunchMode): Promise<void> => ipcRenderer.invoke("game:launch", mode),
+
+  browseStore: (kind: NexusBrowseKind): Promise<NexusModSummary[]> =>
+    ipcRenderer.invoke("store:browse", kind),
+  getStoreMod: (modId: number): Promise<NexusModDetail | null> =>
+    ipcRenderer.invoke("store:mod", modId),
+  installStoreMod: (modId: number): Promise<ScanResult> =>
+    ipcRenderer.invoke("store:install", modId),
+  searchStore: (query: string): Promise<CurseforgeModSummary[]> =>
+    ipcRenderer.invoke("store:search", query),
+  installCurseforgeMod: (modId: number, fileId: number | null): Promise<ScanResult> =>
+    ipcRenderer.invoke("store:installCurseforge", modId, fileId),
+  installSmapi: (): Promise<ScanResult> => ipcRenderer.invoke("smapi:install"),
+
+  window: {
+    minimize: (): void => ipcRenderer.send("window:minimize"),
+    toggleMaximize: (): void => ipcRenderer.send("window:toggleMaximize"),
+    close: (): void => ipcRenderer.send("window:close"),
+    isMaximized: (): Promise<boolean> => ipcRenderer.invoke("window:isMaximized"),
+    onMaximizedChange: (callback: (maximized: boolean) => void): (() => void) => {
+      const listener = (_event: IpcRendererEvent, maximized: boolean): void =>
+        callback(maximized);
+      ipcRenderer.on("window:maximized", listener);
+      return () => ipcRenderer.removeListener("window:maximized", listener);
+    },
+  },
 };
 
 export type PreloadApi = DesktopApi;

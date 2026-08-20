@@ -1,4 +1,5 @@
-import { BrowserWindow, dialog, ipcMain, app } from "electron";
+import { join } from "node:path";
+import { BrowserWindow, dialog, ipcMain, app, shell } from "electron";
 import { captureProfileState, type NxmLink } from "@sdm/core";
 import type {
   AppInfo,
@@ -18,11 +19,14 @@ import { setModEnabled } from "./services/mod-toggle.js";
 import { checkUpdates } from "./services/update-check.js";
 import { installArchive, installFromFile } from "./services/installer.js";
 import {
+  browseMods,
   downloadToBuffer,
+  getModDetail,
   listFiles,
   resolveDownloadUrl,
   validateKey,
 } from "./services/nexus-client.js";
+import type { NexusBrowseKind, NexusFile } from "@sdm/core";
 import {
   createProfile,
   deleteProfile,
@@ -32,7 +36,10 @@ import {
   setProfileEnabled,
 } from "./services/profiles-store.js";
 import { applyProfile } from "./services/apply-profile.js";
+import { uninstallMod } from "./services/mod-actions.js";
 import { launchGame } from "./services/launch.js";
+import { installSmapi } from "./services/smapi-installer.js";
+import * as curseforge from "./services/curseforge-client.js";
 
 type GetWindow = () => BrowserWindow | null;
 
@@ -75,11 +82,22 @@ async function syncActiveProfile(modsPath: string): Promise<void> {
   );
 }
 
+/** Choose which file to install: the marked primary, else a MAIN file, else the first. */
+function pickPrimaryFile(files: NexusFile[]): NexusFile | null {
+  return (
+    files.find((f) => f.isPrimary) ??
+    files.find((f) => f.category === "MAIN") ??
+    files[0] ??
+    null
+  );
+}
+
 async function toAppSettings(): Promise<AppSettings> {
   const settings = await readSettings();
   return {
     hasNexusApiKey: !!settings.nexusApiKey,
     nexusUser: settings.nexusUser ?? null,
+    hasCurseForgeApiKey: !!settings.curseForgeApiKey,
   };
 }
 
@@ -183,6 +201,25 @@ export function registerIpc(windowGetter: GetWindow): void {
     return checkUpdates(mods, smapi);
   });
 
+  ipcMain.handle("mods:uninstall", async (_event, relativePath: string): Promise<ScanResult> => {
+    const game = await resolveGame();
+    if (game) {
+      await uninstallMod(game.modsPath, relativePath);
+      await syncActiveProfile(game.modsPath);
+    }
+    return scan();
+  });
+
+  ipcMain.handle("mods:reveal", async (_event, relativePath: string): Promise<void> => {
+    const game = await resolveGame();
+    if (game) shell.showItemInFolder(join(game.modsPath, relativePath));
+  });
+
+  ipcMain.handle("mods:openFolder", async (): Promise<void> => {
+    const game = await resolveGame();
+    if (game) await shell.openPath(game.modsPath);
+  });
+
   ipcMain.handle("settings:get", (): Promise<AppSettings> => toAppSettings());
 
   ipcMain.handle("settings:setNexusApiKey", async (_event, key: string): Promise<AppSettings> => {
@@ -197,6 +234,63 @@ export function registerIpc(windowGetter: GetWindow): void {
     });
     return toAppSettings();
   });
+
+  ipcMain.handle("settings:setCurseForgeApiKey", async (_event, key: string): Promise<AppSettings> => {
+    const trimmed = key.trim();
+    if (trimmed && !(await curseforge.validateKey(trimmed))) {
+      throw new Error("That CurseForge API key was rejected. Check it and try again.");
+    }
+    await writeSettings({ curseForgeApiKey: trimmed || undefined });
+    return toAppSettings();
+  });
+
+  ipcMain.handle("store:search", async (_event, query: string) => {
+    const { curseForgeApiKey } = await readSettings();
+    if (!curseForgeApiKey) throw new Error("Add your CurseForge API key in Settings to search.");
+    return curseforge.searchMods(curseForgeApiKey, query);
+  });
+
+  ipcMain.handle(
+    "store:installCurseforge",
+    async (_event, modId: number, fileId: number | null): Promise<ScanResult> => {
+      const { curseForgeApiKey } = await readSettings();
+      if (!curseForgeApiKey) throw new Error("Add your CurseForge API key in Settings first.");
+      const game = await resolveGame();
+      if (!game) throw new Error("Locate your Stardew Valley folder first.");
+
+      emitProgress({ phase: "resolving", label: `mod ${modId}` });
+      try {
+        let resolvedFileId = fileId;
+        if (resolvedFileId == null) {
+          const files = await curseforge.listFiles(curseForgeApiKey, modId);
+          resolvedFileId = files[0]?.fileId ?? null;
+        }
+        if (resolvedFileId == null) throw new Error("This mod has no downloadable file.");
+
+        const url = await curseforge.resolveDownloadUrl(curseForgeApiKey, modId, resolvedFileId);
+        if (!url) {
+          throw new Error(
+            "The author disabled third-party downloads for this mod. Open it on CurseForge instead.",
+          );
+        }
+        const archiveName = url.split("/").pop() ?? `mod-${modId}.zip`;
+        const buffer = await downloadToBuffer(url, (receivedBytes, totalBytes) =>
+          emitProgress({ phase: "downloading", label: archiveName, receivedBytes, totalBytes }),
+        );
+
+        emitProgress({ phase: "installing", label: archiveName });
+        const installed = await installArchive(buffer, { modsPath: game.modsPath, archiveName });
+        await syncActiveProfile(game.modsPath);
+        emitProgress({
+          phase: "done",
+          installed: installed.map((m) => ({ installName: m.installName, name: m.name, version: m.version })),
+        });
+      } catch (err) {
+        emitProgress({ phase: "error", error: (err as Error).message });
+      }
+      return scan();
+    },
+  );
 
   ipcMain.handle("mods:installFromFile", async (event): Promise<ScanResult> => {
     const game = await resolveGame();
@@ -266,4 +360,101 @@ export function registerIpc(windowGetter: GetWindow): void {
     if (!game) throw new Error("Locate your Stardew Valley folder first.");
     await launchGame(game.path, mode);
   });
+
+  ipcMain.handle("smapi:install", async (): Promise<ScanResult> => {
+    const game = await resolveGame();
+    if (!game) throw new Error("Locate your Stardew Valley folder first.");
+    await installSmapi(game.path, (p) => {
+      const label = p.version ? `SMAPI ${p.version}` : "SMAPI";
+      switch (p.phase) {
+        case "checking":
+          return emitProgress({ phase: "resolving", label });
+        case "downloading":
+          return emitProgress({
+            phase: "downloading",
+            label,
+            receivedBytes: p.received,
+            totalBytes: p.total,
+          });
+        case "installing":
+          return emitProgress({ phase: "installing", label });
+        case "done":
+          return emitProgress({
+            phase: "done",
+            installed: [
+              {
+                installName: "SMAPI",
+                name: p.openedFolder
+                  ? "Installer opened — finish it in the SMAPI window"
+                  : `SMAPI ${p.installedVersion ?? p.version}`,
+                version: p.installedVersion ?? p.version ?? null,
+              },
+            ],
+          });
+        case "error":
+          return emitProgress({ phase: "error", error: p.error });
+      }
+    });
+    return scan();
+  });
+
+  ipcMain.handle("store:browse", async (_event, kind: NexusBrowseKind) => {
+    const { nexusApiKey } = await readSettings();
+    if (!nexusApiKey) throw new Error("Add your Nexus API key in Settings to browse.");
+    return browseMods(nexusApiKey, kind);
+  });
+
+  ipcMain.handle("store:mod", async (_event, modId: number) => {
+    const { nexusApiKey } = await readSettings();
+    if (!nexusApiKey) throw new Error("Add your Nexus API key in Settings to browse.");
+    return getModDetail(nexusApiKey, modId);
+  });
+
+  ipcMain.handle("store:install", async (_event, modId: number): Promise<ScanResult> => {
+    const { nexusApiKey } = await readSettings();
+    if (!nexusApiKey) throw new Error("Add your Nexus API key in Settings first.");
+    const game = await resolveGame();
+    if (!game) throw new Error("Locate your Stardew Valley folder first.");
+
+    emitProgress({ phase: "resolving", label: `mod ${modId}` });
+    try {
+      const files = await listFiles(nexusApiKey, modId);
+      const file = pickPrimaryFile(files);
+      if (!file) throw new Error("This mod has no downloadable main file.");
+
+      const url = await resolveDownloadUrl(nexusApiKey, { modId, fileId: file.fileId });
+      const archiveName = file.fileName ?? `mod-${modId}.zip`;
+      const buffer = await downloadToBuffer(url, (receivedBytes, totalBytes) =>
+        emitProgress({ phase: "downloading", label: archiveName, receivedBytes, totalBytes }),
+      );
+
+      emitProgress({ phase: "installing", label: archiveName });
+      const installed = await installArchive(buffer, { modsPath: game.modsPath, archiveName });
+      await syncActiveProfile(game.modsPath);
+      emitProgress({
+        phase: "done",
+        installed: installed.map((m) => ({ installName: m.installName, name: m.name, version: m.version })),
+      });
+    } catch (err) {
+      emitProgress({ phase: "error", error: (err as Error).message });
+    }
+    return scan();
+  });
+
+  // Custom title-bar window controls.
+  ipcMain.on("window:minimize", (event) =>
+    BrowserWindow.fromWebContents(event.sender)?.minimize(),
+  );
+  ipcMain.on("window:toggleMaximize", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  });
+  ipcMain.on("window:close", (event) =>
+    BrowserWindow.fromWebContents(event.sender)?.close(),
+  );
+  ipcMain.handle("window:isMaximized", (event): boolean =>
+    BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false,
+  );
 }

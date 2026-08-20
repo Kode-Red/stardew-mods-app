@@ -1,9 +1,14 @@
 import { computed, reactive } from "vue";
 import type {
+  AppInfo,
   AppSettings,
+  CurseforgeModSummary,
   DesktopApi,
   InstallProgress,
   LaunchMode,
+  NexusBrowseKind,
+  NexusModDetail,
+  NexusModSummary,
   ProfilesState,
   ScannedMod,
   ScanResult,
@@ -18,6 +23,7 @@ interface State {
   updates: Map<string, UpdateInfo>;
   settings: AppSettings | null;
   profiles: ProfilesState;
+  info: AppInfo | null;
   progress: InstallProgress | null;
   loading: boolean;
   checking: boolean;
@@ -31,6 +37,7 @@ const state = reactive<State>({
   updates: new Map(),
   settings: null,
   profiles: { profiles: [], activeId: null },
+  info: null,
   progress: null,
   loading: false,
   checking: false,
@@ -85,6 +92,7 @@ let unsubscribe: (() => void) | undefined;
 
 async function init(): Promise<void> {
   if (!api) return;
+  void api.getInfo().then((info) => (state.info = info)).catch(() => undefined);
   await Promise.all([refresh(), loadSettings(), loadProfiles()]);
   unsubscribe ??= api.onInstallProgress((p) => {
     state.progress = p;
@@ -127,6 +135,22 @@ async function checkUpdates(): Promise<void> {
     state.updates = new Map(results.map((r) => [r.uniqueId, r]));
   });
   state.checking = false;
+}
+
+async function uninstallMod(relativePath: string): Promise<void> {
+  if (!api) return;
+  await withError(async () => {
+    state.scan = await api.uninstallMod(relativePath);
+    await loadProfiles();
+  });
+}
+
+function revealMod(relativePath: string): void {
+  void api?.revealMod(relativePath);
+}
+
+function openModsFolder(): void {
+  void api?.openModsFolder();
 }
 
 async function saveNexusKey(key: string): Promise<boolean> {
@@ -175,6 +199,53 @@ async function launch(mode: LaunchMode): Promise<void> {
   state.launching = false;
 }
 
+async function browseStore(kind: NexusBrowseKind): Promise<NexusModSummary[]> {
+  if (!api) return [];
+  return (await withError(() => api.browseStore(kind))) ?? [];
+}
+
+async function getStoreMod(modId: number): Promise<NexusModDetail | null> {
+  if (!api) return null;
+  return (await withError(() => api.getStoreMod(modId))) ?? null;
+}
+
+async function installStoreMod(modId: number): Promise<void> {
+  if (!api) return;
+  await withError(async () => {
+    state.scan = await api.installStoreMod(modId);
+    await loadProfiles();
+  });
+}
+
+async function installSmapi(): Promise<void> {
+  if (!api) return;
+  await withError(async () => {
+    state.scan = await api.installSmapi();
+  });
+}
+
+async function saveCurseForgeKey(key: string): Promise<boolean> {
+  if (!api) return false;
+  const result = await withError(async () => {
+    state.settings = await api.setCurseForgeApiKey(key);
+    return state.settings.hasCurseForgeApiKey;
+  });
+  return result ?? false;
+}
+
+async function searchStore(query: string): Promise<CurseforgeModSummary[]> {
+  if (!api) return [];
+  return (await withError(() => api.searchStore(query))) ?? [];
+}
+
+async function installCurseforgeMod(modId: number, fileId: number | null): Promise<void> {
+  if (!api) return;
+  await withError(async () => {
+    state.scan = await api.installCurseforgeMod(modId, fileId);
+    await loadProfiles();
+  });
+}
+
 export function useStore() {
   return {
     state,
@@ -192,11 +263,21 @@ export function useStore() {
     pickFolder,
     installFromFile,
     checkUpdates,
+    uninstallMod,
+    revealMod,
+    openModsFolder,
     saveNexusKey,
     activateProfile,
     createProfile,
     renameProfile,
     deleteProfile,
     launch,
+    browseStore,
+    getStoreMod,
+    installStoreMod,
+    installSmapi,
+    saveCurseForgeKey,
+    searchStore,
+    installCurseforgeMod,
   };
 }

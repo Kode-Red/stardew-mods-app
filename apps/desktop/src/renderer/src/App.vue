@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import type { DesktopApi } from "../../shared/types";
 import { isElectron, useStore } from "./store";
 import ProfilesModal from "./components/ProfilesModal.vue";
 import ProgressBanner from "./components/ProgressBanner.vue";
 
 const store = useStore();
 const collapsed = ref(false);
+
+const winApi = (window as unknown as { api?: DesktopApi }).api?.window;
+const isMaximized = ref(false);
+let unsubMaximize: (() => void) | undefined;
 
 const navGroups = [
   {
@@ -18,7 +23,10 @@ const navGroups = [
   },
   {
     group: "Mods",
-    items: [{ label: "Mods Library", icon: "i-lucide-package", to: "/mods", badge: true }],
+    items: [
+      { label: "Mods Library", icon: "i-lucide-package", to: "/mods", badge: true },
+      { label: "Mods Store", icon: "i-lucide-store", to: "/store", badge: false },
+    ],
   },
 ];
 
@@ -37,8 +45,17 @@ const profileMenu = computed(() => [
   ],
 ]);
 
-onMounted(() => store.init());
-onUnmounted(() => store.dispose());
+onMounted(async () => {
+  store.init();
+  if (winApi) {
+    isMaximized.value = await winApi.isMaximized();
+    unsubMaximize = winApi.onMaximizedChange((v) => (isMaximized.value = v));
+  }
+});
+onUnmounted(() => {
+  store.dispose();
+  unsubMaximize?.();
+});
 </script>
 
 <template>
@@ -49,7 +66,7 @@ onUnmounted(() => store.dispose());
         class="flex shrink-0 flex-col border-r border-default bg-elevated/40 transition-all"
         :class="collapsed ? 'w-16' : 'w-60'"
       >
-        <div class="flex items-center gap-2.5 px-4 py-4">
+        <div class="app-drag flex h-12 items-center gap-2.5 px-4">
           <div class="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <UIcon name="i-lucide-sprout" class="size-5" />
           </div>
@@ -72,10 +89,14 @@ onUnmounted(() => store.dispose());
               custom
             >
               <button
-                class="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors"
-                :class="isActive ? 'bg-primary/10 text-primary font-medium' : 'text-muted hover:bg-elevated hover:text-default'"
+                class="relative flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors"
+                :class="isActive ? 'bg-primary/10 font-medium text-primary' : 'text-muted hover:bg-elevated hover:text-default'"
                 @click="navigate"
               >
+                <span
+                  v-if="isActive"
+                  class="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary"
+                />
                 <UIcon :name="item.icon" class="size-4.5 shrink-0" />
                 <template v-if="!collapsed">
                   <span class="flex-1 text-left">{{ item.label }}</span>
@@ -104,41 +125,79 @@ onUnmounted(() => store.dispose());
 
       <!-- Main column -->
       <div class="flex min-w-0 flex-1 flex-col">
-        <!-- Top bar -->
-        <header class="flex items-center justify-between gap-4 border-b border-default px-5 py-3">
-          <UDropdownMenu :items="profileMenu" :disabled="!isElectron">
-            <UButton color="neutral" variant="subtle" trailing-icon="i-lucide-chevron-down" :disabled="!isElectron">
-              <UIcon name="i-lucide-users" class="size-4" />
-              {{ store.activeProfile.value?.name ?? "Default Profile" }}
-            </UButton>
-          </UDropdownMenu>
+        <!-- Top bar (custom frameless title bar: draggable, with window controls) -->
+        <header class="app-drag flex h-12 items-center justify-between gap-4 border-b border-default pl-4">
+          <div class="app-no-drag flex items-center">
+            <UDropdownMenu :items="profileMenu" :disabled="!isElectron">
+              <UButton color="neutral" variant="subtle" size="sm" trailing-icon="i-lucide-chevron-down" :disabled="!isElectron">
+                <UIcon name="i-lucide-users" class="size-4" />
+                {{ store.activeProfile.value?.name ?? "Default Profile" }}
+              </UButton>
+            </UDropdownMenu>
+          </div>
 
-          <div class="flex items-center gap-2">
-            <UButton
-              color="neutral"
-              variant="subtle"
-              icon="i-lucide-play"
-              :loading="store.state.launching"
-              :disabled="!isElectron || !store.game.value"
-              @click="store.launch('vanilla')"
-            >
-              Launch without mods
-            </UButton>
-            <UButton
-              color="primary"
-              icon="i-lucide-rocket"
-              :loading="store.state.launching"
-              :disabled="!isElectron || !store.game.value"
-              @click="store.launch('modded')"
-            >
-              Launch modded · {{ store.enabledCount.value }} mods
-            </UButton>
+          <div class="flex h-full items-center">
+            <div class="app-no-drag flex items-center gap-2 pr-3">
+              <UButton
+                color="neutral"
+                variant="subtle"
+                size="sm"
+                icon="i-lucide-play"
+                :loading="store.state.launching"
+                :disabled="!isElectron || !store.game.value"
+                @click="store.launch('vanilla')"
+              >
+                Launch without mods
+              </UButton>
+              <UButton
+                color="primary"
+                size="sm"
+                icon="i-lucide-rocket"
+                :loading="store.state.launching"
+                :disabled="!isElectron || !store.game.value"
+                @click="store.launch('modded')"
+              >
+                Launch modded · {{ store.enabledCount.value }} mods
+              </UButton>
+            </div>
+
+            <!-- Account avatar -->
+            <div class="app-no-drag flex items-center pr-3">
+              <div class="grid size-7 place-items-center rounded-full border border-default bg-elevated text-muted">
+                <UIcon name="i-lucide-user" class="size-4" />
+              </div>
+            </div>
+
+            <!-- Window controls -->
+            <div v-if="isElectron" class="app-no-drag flex h-full items-stretch">
+              <button
+                class="grid h-full w-12 place-items-center text-muted transition-colors hover:bg-elevated hover:text-default"
+                aria-label="Minimize"
+                @click="winApi?.minimize()"
+              >
+                <UIcon name="i-lucide-minus" class="size-4" />
+              </button>
+              <button
+                class="grid h-full w-12 place-items-center text-muted transition-colors hover:bg-elevated hover:text-default"
+                aria-label="Maximize"
+                @click="winApi?.toggleMaximize()"
+              >
+                <UIcon :name="isMaximized ? 'i-lucide-copy' : 'i-lucide-square'" class="size-3.5" />
+              </button>
+              <button
+                class="grid h-full w-12 place-items-center text-muted transition-colors hover:bg-error hover:text-inverted"
+                aria-label="Close"
+                @click="winApi?.close()"
+              >
+                <UIcon name="i-lucide-x" class="size-4" />
+              </button>
+            </div>
           </div>
         </header>
 
         <!-- Content -->
         <main class="flex-1 overflow-y-auto">
-          <div class="mx-auto max-w-5xl space-y-5 px-6 py-6">
+          <div class="mx-auto max-w-6xl space-y-6 px-8 py-7">
             <UAlert
               v-if="!isElectron"
               icon="i-lucide-monitor"
@@ -163,6 +222,22 @@ onUnmounted(() => store.dispose());
             <RouterView />
           </div>
         </main>
+
+        <!-- Status bar -->
+        <footer class="flex h-7 shrink-0 items-center justify-between gap-4 border-t border-default bg-elevated/40 px-4 text-[11px] text-muted">
+          <div class="flex min-w-0 items-center gap-2">
+            <span class="flex items-center gap-1.5">
+              <span class="size-1.5 rounded-full" :class="store.game.value ? 'bg-success' : 'bg-error'" />
+              {{ store.game.value ? "Connected" : "No game folder" }}
+            </span>
+            <span v-if="store.game.value" class="truncate font-mono opacity-70">{{ store.game.value.path }}</span>
+          </div>
+          <div class="flex shrink-0 items-center gap-3">
+            <span v-if="store.smapi.value?.installed">SMAPI {{ store.smapi.value.version ?? "" }}</span>
+            <span>{{ store.mods.value.length }} mods · {{ store.enabledCount.value }} on</span>
+            <span v-if="store.state.info" class="opacity-70">v{{ store.state.info.appVersion }}</span>
+          </div>
+        </footer>
       </div>
     </div>
 

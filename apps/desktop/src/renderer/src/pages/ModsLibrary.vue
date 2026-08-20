@@ -1,9 +1,34 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import type { UpdateStatus } from "@sdm/core";
 import type { ScannedMod, UpdateInfo } from "../../../shared/types";
 import { isElectron, useStore } from "../store";
 
 const store = useStore();
+const pendingUninstall = ref<ScannedMod | null>(null);
+
+function rowMenu(mod: ScannedMod) {
+  return [
+    [
+      {
+        label: "Reveal in folder",
+        icon: "i-lucide-folder-open",
+        onSelect: () => store.revealMod(mod.relativePath),
+      },
+      {
+        label: "Uninstall",
+        icon: "i-lucide-trash-2",
+        onSelect: () => (pendingUninstall.value = mod),
+      },
+    ],
+  ];
+}
+
+async function confirmUninstall(): Promise<void> {
+  const mod = pendingUninstall.value;
+  if (mod) await store.uninstallMod(mod.relativePath);
+  pendingUninstall.value = null;
+}
 
 const statusMeta: Record<UpdateStatus, { color: "success" | "warning" | "info" | "neutral"; label: string }> = {
   "up-to-date": { color: "success", label: "Up to date" },
@@ -29,6 +54,9 @@ function openUrl(url: string): void {
         <p class="text-sm text-muted">{{ store.mods.value.length }} installed · {{ store.enabledCount.value }} enabled</p>
       </div>
       <div class="flex items-center gap-2">
+        <UButton icon="i-lucide-folder-open" color="neutral" variant="ghost" :disabled="!isElectron || !store.game.value" @click="store.openModsFolder()">
+          Open Mods folder
+        </UButton>
         <UButton icon="i-lucide-folder-plus" color="neutral" variant="subtle" :disabled="!isElectron || !store.game.value" @click="store.installFromFile">
           Install from file
         </UButton>
@@ -51,7 +79,7 @@ function openUrl(url: string): void {
       <div
         v-for="mod in store.mods.value"
         :key="mod.relativePath"
-        class="flex items-center gap-4 border-b border-default px-4 py-3 last:border-b-0"
+        class="flex items-center gap-4 border-b border-default px-4 py-3.5 transition-colors last:border-b-0 hover:bg-elevated/40"
         :class="{ 'opacity-55': !mod.enabled }"
       >
         <USwitch :model-value="mod.enabled" :disabled="!!mod.error" @update:model-value="store.toggle(mod)" />
@@ -62,10 +90,17 @@ function openUrl(url: string): void {
             <UBadge v-if="mod.manifest?.isContentPack" color="neutral" variant="outline" size="sm">content pack</UBadge>
             <UBadge v-if="mod.error" color="error" variant="subtle" size="sm">invalid manifest</UBadge>
           </div>
-          <div class="flex items-center gap-2 text-xs text-muted">
+          <div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
             <span v-if="mod.manifest?.author">by {{ mod.manifest.author }}</span>
             <span v-if="mod.manifest" class="font-mono">v{{ mod.manifest.version }}</span>
             <span v-else class="truncate">{{ mod.error }}</span>
+            <span
+              v-for="key in (mod.manifest?.updateKeys ?? [])"
+              :key="key.raw"
+              class="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-dimmed"
+            >
+              {{ key.site }}
+            </span>
           </div>
         </div>
 
@@ -83,11 +118,30 @@ function openUrl(url: string): void {
             @click="openUrl(updateFor(mod)!.url!)"
           />
         </template>
+
+        <UDropdownMenu :items="rowMenu(mod)">
+          <UButton icon="i-lucide-ellipsis-vertical" color="neutral" variant="ghost" size="sm" />
+        </UDropdownMenu>
       </div>
     </div>
 
     <div v-else-if="isElectron && !store.state.loading" class="rounded-xl border border-default py-8 text-center text-sm text-muted">
       No mods found. Install one from a file or from Nexus.
     </div>
+
+    <UModal :open="!!pendingUninstall" title="Uninstall mod" @update:open="(v: boolean) => { if (!v) pendingUninstall = null; }">
+      <template #body>
+        <p class="text-sm">
+          Delete <span class="font-medium">{{ pendingUninstall?.displayName }}</span> from your Mods
+          folder? This can't be undone.
+        </p>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton color="neutral" variant="ghost" @click="pendingUninstall = null">Cancel</UButton>
+          <UButton color="error" icon="i-lucide-trash-2" @click="confirmUninstall">Uninstall</UButton>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
