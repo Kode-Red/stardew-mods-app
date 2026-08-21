@@ -97,24 +97,32 @@ the future web app alike.
 
 1. **Foundations** — monorepo, `@sdm/core`, Electron + Nuxt UI shell. ✅
 2. **Mod manager** — locate the Stardew install, scan `Mods/`, list mods,
-   enable/disable, uninstall, reveal/open folders, run update/compat checks via
-   the [SMAPI Web API](https://smapi.io/), and one-click **update** outdated mods
-   (via their update key: CurseForge / GitHub releases / Nexus Premium). ✅
+   enable/disable, uninstall, reveal/open folders, **organize into folders
+   (drag-and-drop with auto-scroll)**, run update/compat checks via the
+   [SMAPI Web API](https://smapi.io/), one-click **update** (CurseForge / GitHub
+   releases / Nexus Premium), and **conflict detection** (duplicate UniqueIDs,
+   missing dependencies). ✅
 3. **Downloads** — install from local zip ✅, `nxm://` handler ✅, Nexus API
    (personal key) ✅, CurseForge (API key + search, respects each project's
    third-party distribution toggle) ✅. Next: .rar/.7z support.
 4. **App shell & profiles** — frameless title bar ✅, sidebar/topbar shell ✅,
    switchable mod profiles ✅, Launch modded / vanilla ✅, **shareable modpack
-   recipes** (export/import a mod list, re-downloaded from source — no files
-   redistributed) ✅.
+   recipes** ✅, and **save protection**: auto-backup saves before every modded
+   launch (with restore), save↔profile association, and a pre-launch warning if
+   the newest save's profile differs from the active one. ✅
 5. **Mods Store** — browse Nexus trending/latest ✅, mod-detail page ✅, CurseForge
    search ✅, source switch ✅, download + install ✅ (Nexus premium direct / free
    via nxm; CurseForge respecting the distribution toggle).
-6. **SMAPI bootstrap** — downloads the official SMAPI installer from GitHub and
-   runs it non-interactively (`--install --game-path`), with a folder-open
-   fallback; "Install SMAPI" button appears when SMAPI is missing. ✅
-7. **Web companion + first-party hosting** — Nuxt portal, creator accounts,
-   uploads, moderation. Only mods the uploader authored.
+6. **SMAPI bootstrap & setup flow** — first-run **setup wizard** (Game → SMAPI →
+   Ready); downloads the official SMAPI installer and runs it non-interactively
+   (`--install --game-path`) with a folder-open fallback; a dedicated
+   Install/Reinstall SMAPI control in Settings. ✅
+7. **Community listings** — an in-app "Community" store tab reads a JSON index
+   (hosted on GitHub) of mods that each link to a creator's GitHub repo, and
+   installs from their GitHub release. We list; GitHub hosts the files. ✅ (index
+   repo + submission flow TBD)
+8. **Web companion + first-party hosting** — Nuxt portal, creator accounts,
+   moderation. Only listings (GitHub-hosted files) or author-uploaded mods.
 
 ## Licensing notes
 

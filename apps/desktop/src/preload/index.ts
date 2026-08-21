@@ -61,6 +61,14 @@ const api: DesktopApi = {
     ipcRenderer.invoke("profiles:delete", id),
   activateProfile: (id: string): Promise<ScanResult> =>
     ipcRenderer.invoke("profiles:activate", id),
+  getSaves: (): Promise<import("../shared/types.js").SavesState> => ipcRenderer.invoke("saves:get"),
+  setSaveProfile: (folder: string, profileId: string): Promise<import("../shared/types.js").SavesState> =>
+    ipcRenderer.invoke("saves:setProfile", folder, profileId),
+  backupSaves: (): Promise<import("../shared/types.js").SavesState> => ipcRenderer.invoke("saves:backup"),
+  restoreSaveBackup: (id: string): Promise<import("../shared/types.js").SavesState> =>
+    ipcRenderer.invoke("saves:restore", id),
+  getLaunchWarning: (): Promise<import("../shared/types.js").LaunchWarning | null> =>
+    ipcRenderer.invoke("launch:warning"),
   exportProfile: (): Promise<void> => ipcRenderer.invoke("profile:export"),
   importProfile: (): Promise<ScanResult> => ipcRenderer.invoke("profile:import"),
   backupMods: (): Promise<void> => ipcRenderer.invoke("mods:backup"),
@@ -77,6 +85,12 @@ const api: DesktopApi = {
   installCurseforgeMod: (modId: number, fileId: number | null): Promise<ScanResult> =>
     ipcRenderer.invoke("store:installCurseforge", modId, fileId),
   installSmapi: (): Promise<ScanResult> => ipcRenderer.invoke("smapi:install"),
+  setListingsUrl: (url: string): Promise<AppSettings> =>
+    ipcRenderer.invoke("settings:setListingsUrl", url),
+  fetchListings: (): Promise<import("../shared/types.js").ModListingUi[]> =>
+    ipcRenderer.invoke("listings:fetch"),
+  installListing: (githubRepo: string): Promise<ScanResult> =>
+    ipcRenderer.invoke("listings:install", githubRepo),
 
   window: {
     minimize: (): void => ipcRenderer.send("window:minimize"),

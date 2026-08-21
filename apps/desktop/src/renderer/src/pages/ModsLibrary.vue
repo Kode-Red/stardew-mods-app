@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, onUnmounted, reactive, ref } from "vue";
 import { canonicalModKey, type UpdateStatus } from "@sdm/core";
 import type { ScannedMod, UpdateInfo } from "../../../shared/types";
 import { isElectron, useStore } from "../store";
@@ -136,7 +136,39 @@ function onDragStart(mod: ScannedMod, event: DragEvent): void {
 function onDragEnd(): void {
   draggingId.value = null;
   dragOverGroup.value = null;
+  if (rafId) {
+    cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
 }
+
+// Auto-scroll the content area when dragging a mod near the top/bottom edge.
+let rafId = 0;
+let dragY = 0;
+function autoscrollStep(): void {
+  if (!draggingId.value) {
+    rafId = 0;
+    return;
+  }
+  const el = document.querySelector("main");
+  if (el) {
+    const rect = el.getBoundingClientRect();
+    const edge = 64;
+    const speed = 14;
+    if (dragY > rect.top && dragY < rect.top + edge) el.scrollTop -= speed;
+    else if (dragY > rect.bottom - edge) el.scrollTop += speed;
+  }
+  rafId = requestAnimationFrame(autoscrollStep);
+}
+function onRootDragOver(event: DragEvent): void {
+  if (!draggingId.value) return;
+  dragY = event.clientY;
+  if (!rafId) rafId = requestAnimationFrame(autoscrollStep);
+}
+
+onUnmounted(() => {
+  if (rafId) cancelAnimationFrame(rafId);
+});
 function onDropTo(folder: string): void {
   const id = draggingId.value;
   onDragEnd();
@@ -182,7 +214,8 @@ function openUrl(url: string): void {
 </script>
 
 <template>
-  <div class="space-y-5">
+  <div class="space-y-5" @dragover="onRootDragOver">
+
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-semibold">Mods Library</h1>
@@ -234,6 +267,40 @@ function openUrl(url: string): void {
       </div>
 
       <p class="text-xs text-dimmed">Tip: drag a mod onto a folder to organize it.</p>
+
+      <!-- Conflicts -->
+      <div
+        v-if="store.conflictTotal.value > 0"
+        class="space-y-2 rounded-xl border border-warning/40 bg-warning/5 p-4"
+      >
+        <div class="flex items-center gap-2 text-warning">
+          <UIcon name="i-lucide-triangle-alert" class="size-4.5" />
+          <span class="text-sm font-medium">
+            {{ store.conflictTotal.value }} possible conflict{{ store.conflictTotal.value === 1 ? "" : "s" }}
+          </span>
+        </div>
+        <ul class="space-y-1 text-sm text-muted">
+          <li v-for="dup in store.conflicts.value.duplicateIds" :key="dup.uniqueId" class="flex gap-2">
+            <UIcon name="i-lucide-copy" class="mt-0.5 size-3.5 shrink-0" />
+            <span>
+              Duplicate ID <span class="font-mono text-xs">{{ dup.uniqueId }}</span> —
+              {{ dup.names.join(", ") }} (one won't load).
+            </span>
+          </li>
+          <li
+            v-for="(dep, i) in store.conflicts.value.missingDependencies"
+            :key="`${dep.modName}-${dep.dependencyId}-${i}`"
+            class="flex gap-2"
+          >
+            <UIcon name="i-lucide-unlink" class="mt-0.5 size-3.5 shrink-0" />
+            <span>
+              <span class="font-medium text-default">{{ dep.modName }}</span> needs
+              <span class="font-mono text-xs">{{ dep.dependencyId }}</span>
+              ({{ dep.reason === "outdated" ? "update it" : "not installed/enabled" }}).
+            </span>
+          </li>
+        </ul>
+      </div>
 
       <div v-if="filtered.length === 0" class="rounded-xl border border-default py-8 text-center text-sm text-muted">
         No mods match "{{ query }}".

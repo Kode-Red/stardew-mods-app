@@ -12,38 +12,24 @@
 import { z } from "zod";
 import { parseUpdateKeys, type UpdateKey } from "./update-keys.js";
 
-// Versions are kept lenient on purpose: a manager should still list and organize
-// a mod whose version string isn't textbook semver. Version *comparisons* handle
-// unparseable values gracefully (they resolve to "unknown"), so we only require a
-// non-empty string here rather than rejecting the whole manifest.
-const versionString = z.string().min(1);
-
-const dependencySchema = z.object({
-  UniqueID: z.string().min(1),
-  MinimumVersion: z.string().optional(),
-  IsRequired: z.boolean().optional(),
-});
-
-const contentPackForSchema = z.object({
-  UniqueID: z.string().min(1),
-  MinimumVersion: z.string().optional(),
-});
-
-// Author can be a string or (rarely) an array/object in the wild; coerce loosely.
-const authorSchema = z.union([z.string(), z.array(z.string()), z.record(z.unknown())]);
+// A manager should list/organize any real mod, so the parser is deliberately
+// tolerant: only Name + UniqueID + Version are required (Version may be a number
+// and is coerced to a string). Everything else is read best-effort in normalise
+// and can be any shape without rejecting the whole manifest.
+const versionLike = z.union([z.string(), z.number()]).transform((v) => String(v));
 
 export const manifestSchema = z
   .object({
     Name: z.string().min(1),
-    Author: authorSchema.optional(),
-    Version: versionString,
-    Description: z.string().optional(),
+    Version: versionLike,
     UniqueID: z.string().min(1),
-    EntryDll: z.string().optional(),
-    MinimumApiVersion: z.string().optional(),
-    UpdateKeys: z.array(z.string()).optional(),
-    Dependencies: z.array(dependencySchema).optional(),
-    ContentPackFor: contentPackForSchema.optional(),
+    Author: z.unknown().optional(),
+    Description: z.unknown().optional(),
+    EntryDll: z.unknown().optional(),
+    MinimumApiVersion: z.unknown().optional(),
+    UpdateKeys: z.unknown().optional(),
+    Dependencies: z.unknown().optional(),
+    ContentPackFor: z.unknown().optional(),
   })
   .passthrough();
 
@@ -116,34 +102,61 @@ function stripJsonComments(input: string): string {
   return out;
 }
 
-function normaliseAuthor(author: RawManifest["Author"]): string | null {
-  if (typeof author === "string") return author;
-  if (Array.isArray(author)) return author.join(", ");
+function asString(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
   return null;
 }
 
+function normaliseAuthor(author: unknown): string | null {
+  if (typeof author === "string") return author;
+  if (Array.isArray(author)) return author.filter((a) => typeof a === "string").join(", ") || null;
+  return null;
+}
+
+function normaliseUpdateKeys(value: unknown): UpdateKey[] {
+  if (!Array.isArray(value)) return [];
+  return parseUpdateKeys(value.filter((k): k is string => typeof k === "string"));
+}
+
+function normaliseDependencies(value: unknown): ModDependency[] {
+  if (!Array.isArray(value)) return [];
+  const out: ModDependency[] = [];
+  for (const dep of value) {
+    if (!dep || typeof dep !== "object") continue;
+    const uniqueId = asString((dep as Record<string, unknown>).UniqueID);
+    if (!uniqueId) continue;
+    const required = (dep as Record<string, unknown>).IsRequired;
+    out.push({
+      uniqueId,
+      minimumVersion: asString((dep as Record<string, unknown>).MinimumVersion),
+      required: required !== false, // default true unless explicitly false
+    });
+  }
+  return out;
+}
+
+function normaliseContentPackFor(value: unknown): Manifest["contentPackFor"] {
+  if (!value || typeof value !== "object") return null;
+  const uniqueId = asString((value as Record<string, unknown>).UniqueID);
+  if (!uniqueId) return null;
+  return { uniqueId, minimumVersion: asString((value as Record<string, unknown>).MinimumVersion) };
+}
+
 function normalise(raw: RawManifest): Manifest {
+  const contentPackFor = normaliseContentPackFor(raw.ContentPackFor);
   return {
     name: raw.Name,
     author: normaliseAuthor(raw.Author),
     version: raw.Version,
-    description: raw.Description ?? null,
+    description: asString(raw.Description),
     uniqueId: raw.UniqueID,
-    entryDll: raw.EntryDll ?? null,
-    minimumApiVersion: raw.MinimumApiVersion ?? null,
-    updateKeys: parseUpdateKeys(raw.UpdateKeys ?? []),
-    dependencies: (raw.Dependencies ?? []).map((d) => ({
-      uniqueId: d.UniqueID,
-      minimumVersion: d.MinimumVersion ?? null,
-      required: d.IsRequired ?? true,
-    })),
-    contentPackFor: raw.ContentPackFor
-      ? {
-          uniqueId: raw.ContentPackFor.UniqueID,
-          minimumVersion: raw.ContentPackFor.MinimumVersion ?? null,
-        }
-      : null,
-    isContentPack: raw.ContentPackFor != null && raw.EntryDll == null,
+    entryDll: asString(raw.EntryDll),
+    minimumApiVersion: asString(raw.MinimumApiVersion),
+    updateKeys: normaliseUpdateKeys(raw.UpdateKeys),
+    dependencies: normaliseDependencies(raw.Dependencies),
+    contentPackFor,
+    isContentPack: contentPackFor != null && asString(raw.EntryDll) == null,
     raw,
   };
 }
@@ -162,13 +175,19 @@ export function parseManifestObject(value: unknown): Manifest {
 
 /** Parse manifest.json text (tolerating BOM/comments). Throws on failure. */
 export function parseManifest(jsonText: string): Manifest {
+  const stripped = jsonText.replace(/^﻿/, "");
   let json: unknown;
   try {
-    json = JSON.parse(stripJsonComments(jsonText));
-  } catch (err) {
-    throw new ManifestParseError(
-      `manifest.json is not valid JSON: ${(err as Error).message}`,
-    );
+    // Parse the raw JSON first so valid files are never touched by comment-stripping.
+    json = JSON.parse(stripped);
+  } catch {
+    try {
+      json = JSON.parse(stripJsonComments(stripped));
+    } catch (err) {
+      throw new ManifestParseError(
+        `manifest.json is not valid JSON: ${(err as Error).message}`,
+      );
+    }
   }
   return parseManifestObject(json);
 }

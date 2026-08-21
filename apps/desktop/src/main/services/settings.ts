@@ -15,6 +15,12 @@ export interface Settings {
   modCategories?: Record<string, string>;
   /** User-created folder names (may be empty of mods). */
   modFolders?: string[];
+  /** URL of a community listings index (JSON on GitHub). */
+  listingsUrl?: string;
+  /** Save folder name -> profile id it was last played under. */
+  saveProfiles?: Record<string, string>;
+  /** The most recent modded launch, used to associate freshly-played saves. */
+  lastModdedLaunch?: { profileId: string; at: number };
 }
 
 function settingsFile(): string {

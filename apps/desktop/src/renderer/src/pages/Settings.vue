@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { isElectron, useStore } from "../store";
 
 const store = useStore();
+
+const smapiVersion = computed(() => (store.smapi.value?.version ?? "").split("+")[0]);
+const installingSmapi = computed(() => {
+  const p = store.state.progress;
+  return !!p && ["resolving", "downloading", "installing"].includes(p.phase);
+});
 const nexusKeyInput = ref("");
 const savingKey = ref(false);
 const keyError = ref<string | null>(null);
@@ -10,6 +16,9 @@ const keyError = ref<string | null>(null);
 const cfKeyInput = ref("");
 const savingCfKey = ref(false);
 const cfKeyError = ref<string | null>(null);
+
+const listingsInput = ref("");
+const savingListings = ref(false);
 
 async function saveKey(): Promise<void> {
   savingKey.value = true;
@@ -29,6 +38,12 @@ async function saveCfKey(): Promise<void> {
   savingCfKey.value = false;
 }
 
+async function saveListings(): Promise<void> {
+  savingListings.value = true;
+  await store.saveListingsUrl(listingsInput.value);
+  savingListings.value = false;
+}
+
 function openUrl(url: string): void {
   window.open(url, "_blank", "noopener");
 }
@@ -36,9 +51,20 @@ function openUrl(url: string): void {
 
 <template>
   <div class="max-w-2xl space-y-6">
-    <div>
-      <h1 class="text-2xl font-semibold">Settings</h1>
-      <p class="text-sm text-muted">Game location and mod sources.</p>
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-semibold">Settings</h1>
+        <p class="text-sm text-muted">Game location and mod sources.</p>
+      </div>
+      <UButton
+        icon="i-lucide-wand-2"
+        color="neutral"
+        variant="subtle"
+        :disabled="!isElectron"
+        @click="store.state.setupOpen = true"
+      >
+        Run setup
+      </UButton>
     </div>
 
     <!-- Game folder -->
@@ -54,6 +80,31 @@ function openUrl(url: string): void {
         <p class="text-sm text-muted">Not set.</p>
         <UButton size="sm" icon="i-lucide-folder-open" :disabled="!isElectron" @click="store.pickFolder">Choose folder</UButton>
       </div>
+    </section>
+
+    <!-- SMAPI -->
+    <section class="space-y-3 rounded-xl border border-default p-5">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-medium">SMAPI (mod loader)</h2>
+        <UBadge v-if="store.smapi.value?.installed" color="success" variant="subtle">
+          Installed{{ smapiVersion ? ` · ${smapiVersion}` : "" }}
+        </UBadge>
+        <UBadge v-else color="error" variant="subtle">Not installed</UBadge>
+      </div>
+      <div class="flex items-center gap-2">
+        <UButton
+          icon="i-lucide-download"
+          :loading="installingSmapi"
+          :disabled="!isElectron || !store.game.value"
+          @click="store.installSmapi()"
+        >
+          {{ store.smapi.value?.installed ? "Reinstall / update SMAPI" : "Install SMAPI" }}
+        </UButton>
+        <span v-if="!store.game.value" class="text-xs text-muted">Set your game folder first.</span>
+      </div>
+      <p class="text-xs text-muted">
+        Downloads the official installer from smapi.io and runs it. Required to load mods.
+      </p>
     </section>
 
     <!-- Nexus -->
@@ -120,6 +171,31 @@ function openUrl(url: string): void {
         <UButton variant="link" size="xs" class="px-0" @click="openUrl('https://console.curseforge.com/')">
           Open CurseForge console
         </UButton>
+      </p>
+    </section>
+
+    <!-- Community listings -->
+    <section class="space-y-3 rounded-xl border border-default p-5">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-medium">Community listings</h2>
+        <UBadge v-if="store.state.settings?.listingsUrl" color="primary" variant="subtle">Set</UBadge>
+      </div>
+      <p v-if="store.state.settings?.listingsUrl" class="truncate font-mono text-xs text-muted">
+        {{ store.state.settings.listingsUrl }}
+      </p>
+      <div class="flex items-center gap-2">
+        <UInput
+          v-model="listingsInput"
+          placeholder="https://raw.githubusercontent.com/…/listings.json"
+          icon="i-lucide-github"
+          class="flex-1"
+          :disabled="!isElectron"
+        />
+        <UButton :loading="savingListings" :disabled="!isElectron" @click="saveListings">Save</UButton>
+      </div>
+      <p class="text-xs text-muted">
+        A JSON index of mods, each pointing at a GitHub repo. The app installs from each mod's GitHub
+        release — no mod files are hosted here, only the listing. Creators submit by PR to the index repo.
       </p>
     </section>
   </div>

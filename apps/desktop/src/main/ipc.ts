@@ -1,14 +1,18 @@
 import { join } from "node:path";
 import { writeFile, readFile } from "node:fs/promises";
 import {
+  associateSaves,
   buildRecipe,
   canonicalModKey,
   captureProfileState,
+  findSaveProfileMismatch,
+  parseListingsIndex,
   parseRecipe,
   parseUpdateKeys,
   serializeRecipe,
   type NxmLink,
 } from "@sdm/core";
+import { fetchJson } from "./services/download.js";
 import { BrowserWindow, dialog, ipcMain, app, shell } from "electron";
 import type {
   AppInfo,
@@ -16,7 +20,9 @@ import type {
   GameLocation,
   InstallProgress,
   LaunchMode,
+  LaunchWarning,
   ProfilesState,
+  SavesState,
   ScanResult,
   UpdateInfo,
 } from "../shared/types.js";
@@ -50,6 +56,7 @@ import { launchGame } from "./services/launch.js";
 import { installSmapi } from "./services/smapi-installer.js";
 import { resolveSourceDownload } from "./services/source-install.js";
 import { zipFolder } from "./services/backup.js";
+import { backupSaves, listBackups, listSaves, restoreBackup, savesFolder } from "./services/saves.js";
 import * as curseforge from "./services/curseforge-client.js";
 
 type GetWindow = () => BrowserWindow | null;
@@ -118,6 +125,27 @@ function pickPrimaryFile(files: NexusFile[]): NexusFile | null {
   );
 }
 
+/** Build the saves view, refreshing (and persisting) save↔profile associations. */
+async function savesState(): Promise<SavesState> {
+  const settings = await readSettings();
+  const saves = await listSaves();
+  const current = settings.saveProfiles ?? {};
+  const associated = associateSaves(saves, current, settings.lastModdedLaunch ?? null);
+  if (JSON.stringify(associated) !== JSON.stringify(current)) {
+    await writeSettings({ saveProfiles: associated });
+  }
+  return {
+    savesPath: savesFolder(),
+    saves: saves.map((s) => ({
+      folder: s.folder,
+      farmName: s.farmName,
+      lastModifiedMs: s.lastModifiedMs,
+      profileId: associated[s.folder] ?? null,
+    })),
+    backups: await listBackups(),
+  };
+}
+
 async function toAppSettings(): Promise<AppSettings> {
   const settings = await readSettings();
   return {
@@ -126,6 +154,7 @@ async function toAppSettings(): Promise<AppSettings> {
     hasCurseForgeApiKey: !!settings.curseForgeApiKey,
     modCategories: settings.modCategories ?? {},
     modFolders: settings.modFolders ?? [],
+    listingsUrl: settings.listingsUrl ?? "",
   };
 }
 
@@ -457,7 +486,57 @@ export function registerIpc(windowGetter: GetWindow): void {
   ipcMain.handle("game:launch", async (_event, mode: LaunchMode): Promise<void> => {
     const game = await resolveGame();
     if (!game) throw new Error("Locate your Stardew Valley folder first.");
+    if (mode === "modded") {
+      // Safety net: back up saves before a modded launch, and remember the
+      // active profile so saves played now get associated with it.
+      try {
+        await backupSaves("before-launch");
+      } catch {
+        /* backup is best-effort; never block launch */
+      }
+      const { activeId } = await getProfiles();
+      if (activeId) await writeSettings({ lastModdedLaunch: { profileId: activeId, at: Date.now() } });
+    }
     await launchGame(game.path, mode);
+  });
+
+  ipcMain.handle("saves:get", (): Promise<SavesState> => savesState());
+
+  ipcMain.handle("saves:setProfile", async (_event, folder: string, profileId: string): Promise<SavesState> => {
+    const settings = await readSettings();
+    const map = { ...(settings.saveProfiles ?? {}) };
+    if (profileId) map[folder] = profileId;
+    else delete map[folder];
+    await writeSettings({ saveProfiles: map });
+    return savesState();
+  });
+
+  ipcMain.handle("saves:backup", async (): Promise<SavesState> => {
+    await backupSaves("manual");
+    return savesState();
+  });
+
+  ipcMain.handle("saves:restore", async (_event, id: string): Promise<SavesState> => {
+    await restoreBackup(id);
+    return savesState();
+  });
+
+  ipcMain.handle("launch:warning", async (): Promise<LaunchWarning | null> => {
+    const settings = await readSettings();
+    const { profiles, activeId } = await getProfiles();
+    const saves = await listSaves();
+    const mismatch = findSaveProfileMismatch(
+      saves.map((s) => ({ folder: s.folder, lastModifiedMs: s.lastModifiedMs })),
+      settings.saveProfiles ?? {},
+      activeId,
+    );
+    if (!mismatch) return null;
+    const save = saves.find((s) => s.folder === mismatch.folder);
+    return {
+      saveFarmName: save?.farmName ?? mismatch.folder,
+      savedProfileName: profiles.find((p) => p.id === mismatch.savedProfileId)?.name ?? "another profile",
+      activeProfileName: profiles.find((p) => p.id === activeId)?.name ?? "the active profile",
+    };
   });
 
   ipcMain.handle("profile:export", async (event): Promise<void> => {
@@ -498,13 +577,14 @@ export function registerIpc(windowGetter: GetWindow): void {
       : await dialog.showSaveDialog(options);
     if (result.canceled || !result.filePath) return;
 
-    emitProgress({ phase: "installing", label: "Backing up your Mods folder…" });
+    emitProgress({ phase: "installing", label: "Zipping your Mods folder…" });
     try {
       const buffer = await zipFolder(game.modsPath);
       await writeFile(result.filePath, buffer);
+      shell.showItemInFolder(result.filePath); // reveal the saved zip
       emitProgress({
         phase: "done",
-        installed: [{ installName: "Backup", name: "Mods folder backed up", version: null }],
+        installed: [{ installName: "Backup", name: `Saved to ${result.filePath}`, version: null }],
       });
     } catch (err) {
       emitProgress({ phase: "error", error: (err as Error).message });
@@ -580,6 +660,39 @@ export function registerIpc(windowGetter: GetWindow): void {
         phase: "done",
         installed: [{ installName: recipe.name, name: `Imported ${recipe.mods.length} mods`, version: null }],
       });
+    }
+    return scan();
+  });
+
+  ipcMain.handle("settings:setListingsUrl", async (_event, url: string): Promise<AppSettings> => {
+    await writeSettings({ listingsUrl: url.trim() || undefined });
+    return toAppSettings();
+  });
+
+  ipcMain.handle("listings:fetch", async () => {
+    const { listingsUrl } = await readSettings();
+    if (!listingsUrl) throw new Error("Add a community listings URL in Settings first.");
+    return parseListingsIndex(await fetchJson(listingsUrl, { "user-agent": "StardewModManager" }));
+  });
+
+  ipcMain.handle("listings:install", async (_event, githubRepo: string): Promise<ScanResult> => {
+    const game = await resolveGame();
+    if (!game) throw new Error("Locate your Stardew Valley folder first.");
+    const settings = await readSettings();
+    emitProgress({ phase: "resolving", label: githubRepo });
+    try {
+      const result = await resolveSourceDownload(
+        settings,
+        parseUpdateKeys([`GitHub:${githubRepo}`]),
+        (r, t, label) => emitProgress({ phase: "downloading", label, receivedBytes: r, totalBytes: t }),
+      );
+      if (result.kind === "archive") {
+        await installBuffer(game.modsPath, result.buffer, result.archiveName);
+      } else {
+        throw new Error("No installable GitHub release found for this mod.");
+      }
+    } catch (err) {
+      emitProgress({ phase: "error", error: (err as Error).message });
     }
     return scan();
   });

@@ -11,10 +11,12 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    NavItem: typeof import('./src/components/NavItem.vue')['default']
     ProfilesModal: typeof import('./src/components/ProfilesModal.vue')['default']
     ProgressBanner: typeof import('./src/components/ProgressBanner.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SetupWizard: typeof import('./src/components/SetupWizard.vue')['default']
     UAlert: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@3.3.7_@babel+parse_94171d66b808da36f9f03e72ba181813/node_modules/@nuxt/ui/dist/runtime/components/Alert.vue')['default']
     UApp: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@3.3.7_@babel+parse_94171d66b808da36f9f03e72ba181813/node_modules/@nuxt/ui/dist/runtime/components/App.vue')['default']
     UBadge: typeof import('./../../../../node_modules/.pnpm/@nuxt+ui@3.3.7_@babel+parse_94171d66b808da36f9f03e72ba181813/node_modules/@nuxt/ui/dist/runtime/components/Badge.vue')['default']

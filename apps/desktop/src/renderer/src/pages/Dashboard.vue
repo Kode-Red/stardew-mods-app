@@ -11,6 +11,9 @@ const installing = computed(() => {
   return !!p && ["resolving", "downloading", "installing"].includes(p.phase);
 });
 
+// SMAPI reports a long build hash after "+"; show just the version for display.
+const smapiVersion = computed(() => (store.smapi.value?.version ?? "").split("+")[0]);
+
 const stats = [
   { label: "Installed", icon: "i-lucide-package", get: () => store.mods.value.length },
   { label: "Updates", icon: "i-lucide-arrow-up-circle", get: () => store.updatableCount.value },
@@ -26,14 +29,14 @@ const stats = [
     </div>
 
     <!-- Featured placeholder -->
-    <div class="relative overflow-hidden rounded-xl border border-default bg-gradient-to-br from-primary/15 via-elevated to-default p-8">
+    <div class="relative overflow-hidden rounded-xl border border-default bg-gradient-to-br from-primary/10 via-elevated to-default p-6">
       <p class="text-xs font-medium uppercase tracking-widest text-primary">Getting started</p>
-      <h2 class="mt-2 max-w-lg text-2xl font-bold">Install a mod, build a profile, launch the game.</h2>
+      <h2 class="mt-1.5 max-w-2xl text-xl font-bold sm:text-2xl">Install a mod, build a profile, launch the game.</h2>
       <p class="mt-2 max-w-xl text-sm text-muted">
         Point the app at your Stardew Valley folder, install mods from Nexus or a local zip, then
         group them into profiles you can switch between.
       </p>
-      <div class="mt-4 flex gap-2">
+      <div class="mt-4 flex flex-wrap gap-2">
         <UButton icon="i-lucide-package" @click="router.push('/mods')">Open Mods Library</UButton>
         <UButton icon="i-lucide-sliders-horizontal" color="neutral" variant="subtle" :disabled="!isElectron" @click="store.state.profilesOpen = true">
           Manage profiles
@@ -77,7 +80,7 @@ const stats = [
             class="size-5"
           />
           <span class="text-sm font-medium">
-            SMAPI {{ store.smapi.value?.version ?? (store.smapi.value?.installed ? "" : "not installed") }}
+            SMAPI {{ store.smapi.value?.installed ? smapiVersion : "not installed" }}
           </span>
         </div>
         <UButton

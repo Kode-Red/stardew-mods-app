@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
-import { zipSync } from "fflate";
+import { zip, type Zippable } from "fflate";
 
 /**
  * Zip the *contents* of a folder into a buffer (top-level entries are the
@@ -29,5 +29,8 @@ export async function zipFolder(root: string): Promise<Uint8Array> {
   }
 
   await walk(root);
-  return zipSync(files);
+  // Async zip runs off the main thread so the UI doesn't freeze on large folders.
+  return new Promise((resolve, reject) => {
+    zip(files as Zippable, { level: 6 }, (err, data) => (err ? reject(err) : resolve(data)));
+  });
 }

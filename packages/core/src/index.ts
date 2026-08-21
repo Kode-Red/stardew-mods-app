@@ -9,5 +9,8 @@ export * from "./install-plan.js";
 export * from "./nexus.js";
 export * from "./profiles.js";
 export * from "./profile-recipe.js";
+export * from "./conflicts.js";
+export * from "./saves.js";
 export * from "./github.js";
 export * from "./curseforge.js";
+export * from "./listings.js";

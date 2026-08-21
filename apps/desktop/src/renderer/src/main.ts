@@ -8,6 +8,7 @@ import ModsLibrary from "./pages/ModsLibrary.vue";
 import Store from "./pages/Store.vue";
 import ModDetail from "./pages/ModDetail.vue";
 import Downloads from "./pages/Downloads.vue";
+import Saves from "./pages/Saves.vue";
 import Settings from "./pages/Settings.vue";
 
 const router = createRouter({
@@ -17,6 +18,7 @@ const router = createRouter({
     { path: "/mods", name: "mods", component: ModsLibrary },
     { path: "/store", name: "store", component: Store },
     { path: "/store/:id", name: "store-mod", component: ModDetail },
+    { path: "/saves", name: "saves", component: Saves },
     { path: "/downloads", name: "downloads", component: Downloads },
     { path: "/settings", name: "settings", component: Settings },
   ],

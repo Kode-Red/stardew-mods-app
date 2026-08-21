@@ -1,12 +1,28 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import type { DesktopApi } from "../../shared/types";
+import type { DesktopApi, LaunchWarning } from "../../shared/types";
 import { isElectron, useStore } from "./store";
 import ProfilesModal from "./components/ProfilesModal.vue";
 import ProgressBanner from "./components/ProgressBanner.vue";
+import SetupWizard from "./components/SetupWizard.vue";
+import NavItem from "./components/NavItem.vue";
 
 const store = useStore();
 const collapsed = ref(false);
+
+const pendingLaunchWarning = ref<LaunchWarning | null>(null);
+async function launchModded(): Promise<void> {
+  const warning = await store.launchWarning();
+  if (warning) {
+    pendingLaunchWarning.value = warning;
+    return;
+  }
+  await store.launch("modded");
+}
+function confirmLaunchModded(): void {
+  pendingLaunchWarning.value = null;
+  void store.launch("modded");
+}
 
 const winApi = (window as unknown as { api?: DesktopApi }).api?.window;
 const isMaximized = ref(false);
@@ -17,8 +33,8 @@ const navGroups = [
     group: "General",
     items: [
       { label: "Dashboard", icon: "i-lucide-layout-dashboard", to: "/" },
+      { label: "Saves", icon: "i-lucide-save", to: "/saves" },
       { label: "Downloads", icon: "i-lucide-download", to: "/downloads" },
-      { label: "Settings", icon: "i-lucide-settings", to: "/settings" },
     ],
   },
   {
@@ -46,10 +62,14 @@ const profileMenu = computed(() => [
 ]);
 
 onMounted(async () => {
-  store.init();
   if (winApi) {
-    isMaximized.value = await winApi.isMaximized();
+    winApi.isMaximized().then((v) => (isMaximized.value = v));
     unsubMaximize = winApi.onMaximizedChange((v) => (isMaximized.value = v));
+  }
+  await store.init();
+  // First-run: open the setup wizard if the game or SMAPI isn't ready yet.
+  if (isElectron && (!store.game.value || !store.smapi.value?.installed)) {
+    store.state.setupOpen = true;
   }
 });
 onUnmounted(() => {
@@ -63,10 +83,13 @@ onUnmounted(() => {
     <div class="flex h-screen overflow-hidden bg-default text-default">
       <!-- Sidebar -->
       <aside
-        class="flex shrink-0 flex-col border-r border-default bg-elevated/40 transition-all"
-        :class="collapsed ? 'w-16' : 'w-60'"
+        class="flex shrink-0 flex-col overflow-hidden border-r border-default bg-elevated/40"
+        :style="{
+          width: (collapsed ? '4rem' : '15rem') + ' !important',
+          minWidth: (collapsed ? '4rem' : '15rem') + ' !important',
+        }"
       >
-        <div class="app-drag flex h-12 items-center gap-2.5 px-4">
+        <div class="app-drag flex h-12 items-center gap-2.5 px-4 mt-2">
           <div class="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <UIcon name="i-lucide-sprout" class="size-5" />
           </div>
@@ -76,51 +99,38 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <nav class="flex-1 space-y-4 overflow-y-auto px-2 py-2">
+        <nav class="flex-1 space-y-6 overflow-y-auto px-3 py-3">
           <div v-for="section in navGroups" :key="section.group">
-            <p v-if="!collapsed" class="px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-dimmed">
+            <p v-if="!collapsed" class="mb-1.5 px-3 text-[11px] font-medium uppercase tracking-wider text-dimmed">
               {{ section.group }}
             </p>
-            <RouterLink
-              v-for="item in section.items"
-              v-slot="{ isActive, navigate }"
-              :key="item.to"
-              :to="item.to"
-              custom
-            >
-              <button
-                class="relative flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors"
-                :class="isActive ? 'bg-primary/10 font-medium text-primary' : 'text-muted hover:bg-elevated hover:text-default'"
-                @click="navigate"
-              >
-                <span
-                  v-if="isActive"
-                  class="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary"
-                />
-                <UIcon :name="item.icon" class="size-4.5 shrink-0" />
-                <template v-if="!collapsed">
-                  <span class="flex-1 text-left">{{ item.label }}</span>
-                  <UBadge
-                    v-if="item.badge && store.mods.value.length"
-                    color="neutral"
-                    variant="subtle"
-                    size="sm"
-                  >
-                    {{ store.mods.value.length }}
-                  </UBadge>
-                </template>
-              </button>
-            </RouterLink>
+            <div class="space-y-1">
+              <NavItem
+                v-for="item in section.items"
+                :key="item.to"
+                :to="item.to"
+                :icon="item.icon"
+                :label="item.label"
+                :badge="item.badge ? store.mods.value.length : undefined"
+                :collapsed="collapsed"
+              />
+            </div>
           </div>
         </nav>
 
-        <button
-          class="flex items-center gap-3 border-t border-default px-4 py-3 text-sm text-muted hover:text-default"
-          @click="collapsed = !collapsed"
-        >
-          <UIcon :name="collapsed ? 'i-lucide-chevrons-right' : 'i-lucide-chevrons-left'" class="size-4.5" />
-          <span v-if="!collapsed">Collapse</span>
-        </button>
+        <!-- Pinned to the bottom -->
+        <div class="space-y-1 border-t border-default px-3 py-3">
+          <NavItem to="/settings" icon="i-lucide-settings" label="Settings" :collapsed="collapsed" />
+          <button
+            class="flex w-full items-center gap-3 rounded-lg py-2 text-sm text-muted transition-colors hover:bg-elevated hover:text-default"
+            :class="collapsed ? 'justify-center px-0' : 'px-3'"
+            :title="collapsed ? 'Expand' : undefined"
+            @click="collapsed = !collapsed"
+          >
+            <UIcon :name="collapsed ? 'i-lucide-chevrons-right' : 'i-lucide-chevrons-left'" class="size-4.5 shrink-0" />
+            <span v-if="!collapsed" class="flex-1 text-left">Collapse</span>
+          </button>
+        </div>
       </aside>
 
       <!-- Main column -->
@@ -155,7 +165,7 @@ onUnmounted(() => {
                 icon="i-lucide-rocket"
                 :loading="store.state.launching"
                 :disabled="!isElectron || !store.game.value"
-                @click="store.launch('modded')"
+                @click="launchModded"
               >
                 Launch modded · {{ store.enabledCount.value }} mods
               </UButton>
@@ -233,7 +243,7 @@ onUnmounted(() => {
             <span v-if="store.game.value" class="truncate font-mono opacity-70">{{ store.game.value.path }}</span>
           </div>
           <div class="flex shrink-0 items-center gap-3">
-            <span v-if="store.smapi.value?.installed">SMAPI {{ store.smapi.value.version ?? "" }}</span>
+            <span v-if="store.smapi.value?.installed">SMAPI {{ (store.smapi.value.version ?? "").split("+")[0] }}</span>
             <span>{{ store.mods.value.length }} mods · {{ store.enabledCount.value }} on</span>
             <span v-if="store.state.info" class="opacity-70">v{{ store.state.info.appVersion }}</span>
           </div>
@@ -242,5 +252,34 @@ onUnmounted(() => {
     </div>
 
     <ProfilesModal v-model:open="store.state.profilesOpen" />
+    <SetupWizard />
+
+    <!-- Pre-launch save/profile mismatch warning -->
+    <UModal
+      :open="!!pendingLaunchWarning"
+      title="Save may not match this profile"
+      @update:open="(v: boolean) => { if (!v) pendingLaunchWarning = null; }"
+    >
+      <template #body>
+        <div class="flex gap-3">
+          <UIcon name="i-lucide-triangle-alert" class="size-6 shrink-0 text-warning" />
+          <p class="text-sm">
+            Your most recent save
+            <span class="font-medium">{{ pendingLaunchWarning?.saveFarmName }}</span>
+            was last played with
+            <span class="font-medium">{{ pendingLaunchWarning?.savedProfileName }}</span>, but
+            <span class="font-medium">{{ pendingLaunchWarning?.activeProfileName }}</span>
+            is active. Launching with a different modset can corrupt that save. Your saves were
+            backed up before launch just in case.
+          </p>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton color="neutral" variant="ghost" @click="pendingLaunchWarning = null">Cancel</UButton>
+          <UButton color="warning" icon="i-lucide-rocket" @click="confirmLaunchModded">Launch anyway</UButton>
+        </div>
+      </template>
+    </UModal>
   </UApp>
 </template>

@@ -75,6 +75,27 @@ describe("parseManifest", () => {
     expect(m.author).toBe("A, B");
   });
 
+  it("coerces a numeric version", () => {
+    const m = parseManifest('{"Name":"X","Version":1.5,"UniqueID":"a.b"}');
+    expect(m.version).toBe("1.5");
+  });
+
+  it("keeps the manifest when a dependency entry is malformed", () => {
+    const m = parseManifest(
+      '{"Name":"X","Version":"1.0.0","UniqueID":"a.b","Dependencies":[{"UniqueID":"good.dep"},{"nope":true},"junk"]}',
+    );
+    expect(m.dependencies).toEqual([{ uniqueId: "good.dep", minimumVersion: null, required: true }]);
+  });
+
+  it("tolerates unexpected field shapes without rejecting", () => {
+    const m = parseManifest(
+      '{"Name":"X","Version":"1.0.0","UniqueID":"a.b","MinimumApiVersion":4.1,"UpdateKeys":"Nexus:1","Description":{"a":1}}',
+    );
+    expect(m.minimumApiVersion).toBe("4.1");
+    expect(m.updateKeys).toEqual([]); // non-array UpdateKeys ignored, not fatal
+    expect(m.description).toBeNull(); // object description isn't coercible → null
+  });
+
   it("throws when required fields are missing", () => {
     expect(() => parseManifest('{"Name":"X"}')).toThrow(ManifestParseError);
   });

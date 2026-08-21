@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import type {
   CurseforgeModSummary,
+  ModListingUi,
   NexusBrowseKind,
   NexusModSummary,
 } from "../../../shared/types";
@@ -11,8 +12,9 @@ import { isElectron, useStore } from "../store";
 const store = useStore();
 const router = useRouter();
 
-type Source = "nexus" | "curseforge";
+type Source = "nexus" | "curseforge" | "community";
 const source = ref<Source>("nexus");
+const sourceLabels: Record<Source, string> = { nexus: "Nexus", curseforge: "CurseForge", community: "Community" };
 
 // Nexus browse
 const nexusTabs: { key: NexusBrowseKind; label: string }[] = [
@@ -49,6 +51,25 @@ async function runSearch(): Promise<void> {
   cfLoading.value = false;
 }
 
+// Community listings (GitHub-hosted metadata; files stay on GitHub)
+const listings = ref<ModListingUi[]>([]);
+const listingsLoading = ref(false);
+const listingsLoaded = ref(false);
+const hasListingsUrl = computed(() => !!store.state.settings?.listingsUrl);
+
+async function loadListings(): Promise<void> {
+  if (!isElectron || !hasListingsUrl.value) return;
+  listingsLoading.value = true;
+  listings.value = await store.fetchListings();
+  listingsLoaded.value = true;
+  listingsLoading.value = false;
+}
+
+function selectSource(s: Source): void {
+  source.value = s;
+  if (s === "community" && !listingsLoaded.value) void loadListings();
+}
+
 function openUrl(url: string): void {
   window.open(url, "_blank", "noopener");
 }
@@ -65,13 +86,13 @@ onMounted(() => loadNexus("trending"));
       </div>
       <div class="flex gap-1 rounded-lg border border-default p-1">
         <button
-          v-for="s in (['nexus', 'curseforge'] as Source[])"
+          v-for="s in (['nexus', 'curseforge', 'community'] as Source[])"
           :key="s"
-          class="rounded-md px-3 py-1.5 text-sm capitalize transition-colors"
+          class="rounded-md px-3 py-1.5 text-sm transition-colors"
           :class="source === s ? 'bg-primary/10 font-medium text-primary' : 'text-muted hover:text-default'"
-          @click="source = s"
+          @click="selectSource(s)"
         >
-          {{ s === "nexus" ? "Nexus" : "CurseForge" }}
+          {{ sourceLabels[s] }}
         </button>
       </div>
     </div>
@@ -125,7 +146,7 @@ onMounted(() => loadNexus("trending"));
     </template>
 
     <!-- CurseForge -->
-    <template v-else>
+    <template v-else-if="source === 'curseforge'">
       <div v-if="!hasCfKey" class="flex flex-col items-center gap-3 rounded-xl border border-default py-10 text-center">
         <UIcon name="i-lucide-key-round" class="size-8 text-muted" />
         <p class="text-sm text-muted">Add your CurseForge API key to search.</p>
@@ -187,6 +208,54 @@ onMounted(() => loadNexus("trending"));
         </div>
         <div v-else-if="cfSearched" class="rounded-xl border border-default py-10 text-center text-sm text-muted">No results.</div>
         <div v-else class="rounded-xl border border-default py-10 text-center text-sm text-muted">Search for a mod to get started.</div>
+      </template>
+    </template>
+
+    <!-- Community (GitHub-hosted listings) -->
+    <template v-else>
+      <div v-if="!hasListingsUrl" class="flex flex-col items-center gap-3 rounded-xl border border-default py-10 text-center">
+        <UIcon name="i-lucide-github" class="size-8 text-muted" />
+        <div>
+          <p class="text-sm font-medium">Community listings</p>
+          <p class="mt-1 max-w-md text-sm text-muted">
+            A curated directory where each mod is hosted on the creator's GitHub — we list, GitHub
+            hosts the files. Add a listings URL to browse it.
+          </p>
+        </div>
+        <UButton icon="i-lucide-settings" @click="router.push('/settings')">Add listings URL</UButton>
+      </div>
+
+      <template v-else>
+        <div class="flex items-center justify-between">
+          <p class="text-sm text-muted">Installs from each mod's GitHub release — no files hosted here.</p>
+          <UButton icon="i-lucide-refresh-cw" size="xs" color="neutral" variant="ghost" :loading="listingsLoading" @click="loadListings">
+            Refresh
+          </UButton>
+        </div>
+
+        <div v-if="listingsLoading" class="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div v-for="n in 6" :key="n" class="h-48 animate-pulse rounded-xl border border-default bg-elevated/40" />
+        </div>
+        <div v-else-if="listings.length" class="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div v-for="mod in listings" :key="mod.githubRepo" class="flex flex-col overflow-hidden rounded-xl border border-default">
+            <div class="aspect-video overflow-hidden bg-elevated">
+              <img v-if="mod.imageUrl" :src="mod.imageUrl" :alt="mod.name" class="size-full object-cover" loading="lazy" />
+              <div v-else class="grid size-full place-items-center text-dimmed"><UIcon name="i-lucide-github" class="size-8" /></div>
+            </div>
+            <div class="flex flex-1 flex-col gap-1 p-3">
+              <p class="truncate font-medium">{{ mod.name }}</p>
+              <p v-if="mod.author" class="truncate text-xs text-muted">by {{ mod.author }}</p>
+              <p v-if="mod.summary" class="line-clamp-2 text-xs text-muted">{{ mod.summary }}</p>
+              <div class="mt-2 flex items-center gap-2">
+                <UButton size="xs" icon="i-lucide-download" :disabled="!store.game.value" @click="store.installListing(mod.githubRepo)">
+                  Install
+                </UButton>
+                <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-external-link" @click="openUrl(`https://github.com/${mod.githubRepo}`)" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="rounded-xl border border-default py-10 text-center text-sm text-muted">No listings found.</div>
       </template>
     </template>
   </div>

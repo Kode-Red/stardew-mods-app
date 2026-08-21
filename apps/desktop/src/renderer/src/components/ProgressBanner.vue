@@ -28,7 +28,7 @@ const percent = computed(() => {
       />
       <div class="min-w-0 flex-1">
         <p class="text-sm font-medium capitalize">
-          {{ progress.phase === "done" ? "Installed" : progress.phase }}
+          {{ progress.phase === "done" ? "Done" : progress.phase }}
         </p>
         <p v-if="progress.phase === 'error'" class="text-sm text-error">{{ progress.error }}</p>
         <p v-else-if="progress.phase === 'done' && progress.installed?.length" class="text-sm text-muted">

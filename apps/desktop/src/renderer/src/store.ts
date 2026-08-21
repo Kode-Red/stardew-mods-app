@@ -1,15 +1,19 @@
 import { computed, reactive } from "vue";
+import { conflictCount, detectConflicts } from "@sdm/core";
 import type {
   AppInfo,
   AppSettings,
   CurseforgeModSummary,
   DesktopApi,
+  ModListingUi,
   InstallProgress,
   LaunchMode,
+  LaunchWarning,
   NexusBrowseKind,
   NexusModDetail,
   NexusModSummary,
   ProfilesState,
+  SavesState,
   ScannedMod,
   ScanResult,
   UpdateInfo,
@@ -30,6 +34,7 @@ interface State {
   launching: boolean;
   error: string | null;
   profilesOpen: boolean;
+  setupOpen: boolean;
 }
 
 const state = reactive<State>({
@@ -44,6 +49,7 @@ const state = reactive<State>({
   launching: false,
   error: null,
   profilesOpen: false,
+  setupOpen: false,
 });
 
 const game = computed(() => state.scan?.game ?? null);
@@ -56,6 +62,12 @@ const updatableCount = computed(
 const activeProfile = computed(
   () => state.profiles.profiles.find((p) => p.id === state.profiles.activeId) ?? null,
 );
+const conflicts = computed(() =>
+  detectConflicts(
+    mods.value.map((m) => ({ folderName: m.folderName, manifest: m.manifest, enabled: m.enabled })),
+  ),
+);
+const conflictTotal = computed(() => conflictCount(conflicts.value));
 
 function withError<T>(fn: () => Promise<T>): Promise<T | undefined> {
   state.error = null;
@@ -268,6 +280,29 @@ async function launch(mode: LaunchMode): Promise<void> {
   state.launching = false;
 }
 
+async function launchWarning(): Promise<LaunchWarning | null> {
+  if (!api) return null;
+  return (await withError(() => api.getLaunchWarning())) ?? null;
+}
+
+const EMPTY_SAVES: SavesState = { savesPath: "", saves: [], backups: [] };
+async function getSaves(): Promise<SavesState> {
+  if (!api) return EMPTY_SAVES;
+  return (await withError(() => api.getSaves())) ?? EMPTY_SAVES;
+}
+async function setSaveProfile(folder: string, profileId: string): Promise<SavesState> {
+  if (!api) return EMPTY_SAVES;
+  return (await withError(() => api.setSaveProfile(folder, profileId))) ?? EMPTY_SAVES;
+}
+async function backupSavesNow(): Promise<SavesState> {
+  if (!api) return EMPTY_SAVES;
+  return (await withError(() => api.backupSaves())) ?? EMPTY_SAVES;
+}
+async function restoreSaveBackup(id: string): Promise<SavesState> {
+  if (!api) return EMPTY_SAVES;
+  return (await withError(() => api.restoreSaveBackup(id))) ?? EMPTY_SAVES;
+}
+
 async function browseStore(kind: NexusBrowseKind): Promise<NexusModSummary[]> {
   if (!api) return [];
   return (await withError(() => api.browseStore(kind))) ?? [];
@@ -290,6 +325,26 @@ async function installSmapi(): Promise<void> {
   if (!api) return;
   await withError(async () => {
     state.scan = await api.installSmapi();
+  });
+}
+
+async function saveListingsUrl(url: string): Promise<void> {
+  if (!api) return;
+  await withError(async () => {
+    state.settings = await api.setListingsUrl(url);
+  });
+}
+
+async function fetchListings(): Promise<ModListingUi[]> {
+  if (!api) return [];
+  return (await withError(() => api.fetchListings())) ?? [];
+}
+
+async function installListing(githubRepo: string): Promise<void> {
+  if (!api) return;
+  await withError(async () => {
+    state.scan = await api.installListing(githubRepo);
+    await loadProfiles();
   });
 }
 
@@ -325,6 +380,8 @@ export function useStore() {
     enabledCount,
     updatableCount,
     activeProfile,
+    conflicts,
+    conflictTotal,
     init,
     dispose,
     refresh,
@@ -350,10 +407,18 @@ export function useStore() {
     importProfile,
     backupMods,
     launch,
+    launchWarning,
+    getSaves,
+    setSaveProfile,
+    backupSavesNow,
+    restoreSaveBackup,
     browseStore,
     getStoreMod,
     installStoreMod,
     installSmapi,
+    saveListingsUrl,
+    fetchListings,
+    installListing,
     saveCurseForgeKey,
     searchStore,
     installCurseforgeMod,

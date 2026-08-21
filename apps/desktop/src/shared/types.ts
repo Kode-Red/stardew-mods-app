@@ -76,6 +76,34 @@ export interface ProfilesState {
 
 export type LaunchMode = "modded" | "vanilla";
 
+export interface SaveEntryUi {
+  folder: string;
+  farmName: string;
+  lastModifiedMs: number;
+  /** Profile id this save is associated with, or null. */
+  profileId: string | null;
+}
+
+export interface SaveBackupUi {
+  id: string;
+  createdMs: number;
+  label: string | null;
+  sizeBytes: number;
+}
+
+export interface SavesState {
+  savesPath: string;
+  saves: SaveEntryUi[];
+  backups: SaveBackupUi[];
+}
+
+/** Warning shown before a modded launch when the newest save's profile differs. */
+export interface LaunchWarning {
+  saveFarmName: string;
+  savedProfileName: string;
+  activeProfileName: string;
+}
+
 export interface NexusAccount {
   userId: number;
   name: string;
@@ -90,6 +118,17 @@ export interface AppSettings {
   modCategories: Record<string, string>;
   /** User-created folder names (may contain no mods). */
   modFolders: string[];
+  /** URL of a community listings index, or "" if unset. */
+  listingsUrl: string;
+}
+
+export interface ModListingUi {
+  name: string;
+  author: string | null;
+  summary: string | null;
+  githubRepo: string;
+  imageUrl: string | null;
+  category: string | null;
 }
 
 export interface InstalledModSummary {
@@ -147,6 +186,17 @@ export interface DesktopApi {
   deleteProfile(id: string): Promise<ProfilesState>;
   /** Switch profiles: reconcile disk to the profile, then return the fresh scan. */
   activateProfile(id: string): Promise<ScanResult>;
+
+  /** List saves + backups, refreshing save↔profile associations. */
+  getSaves(): Promise<SavesState>;
+  /** Assign a save to a profile (empty string clears it). */
+  setSaveProfile(folder: string, profileId: string): Promise<SavesState>;
+  /** Manually back up the whole Saves folder now. */
+  backupSaves(): Promise<SavesState>;
+  restoreSaveBackup(id: string): Promise<SavesState>;
+  /** Check whether launching modded now risks a save/profile mismatch. */
+  getLaunchWarning(): Promise<LaunchWarning | null>;
+
   /** Save the active profile as a shareable recipe file (a modpack, not the mod files). */
   exportProfile(): Promise<void>;
   /** Import a shared recipe: install missing mods from their sources, build the profile. */
@@ -168,6 +218,12 @@ export interface DesktopApi {
 
   /** Download + run the official SMAPI installer, then rescan. */
   installSmapi(): Promise<ScanResult>;
+
+  setListingsUrl(url: string): Promise<AppSettings>;
+  /** Fetch the community listings index (metadata only; files stay on GitHub). */
+  fetchListings(): Promise<ModListingUi[]>;
+  /** Install a listed mod from its GitHub release, then rescan. */
+  installListing(githubRepo: string): Promise<ScanResult>;
 
   window: WindowControls;
 }
