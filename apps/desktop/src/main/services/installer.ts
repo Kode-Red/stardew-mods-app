@@ -2,6 +2,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { planInstall, tryParseManifest } from "@sdm/core";
 import { extractZip, ArchiveError } from "./archive.js";
+import { isPermissionError, friendlyFsError } from "./permissions.js";
 
 export interface InstalledMod {
   installName: string;
@@ -38,10 +39,23 @@ export async function installArchive(
     throw new ArchiveError("No SMAPI mod found in this archive (no manifest.json).");
   }
 
+  try {
+    return await writePlan(files, plan, options.modsPath);
+  } catch (err) {
+    if (isPermissionError(err)) throw new ArchiveError(friendlyFsError(err));
+    throw err;
+  }
+}
+
+async function writePlan(
+  files: Map<string, Uint8Array>,
+  plan: { sourceDir: string; installName: string }[],
+  modsPath: string,
+): Promise<InstalledMod[]> {
   const installed: InstalledMod[] = [];
   for (const item of plan) {
     const folderName = sanitizeFolderName(item.installName);
-    const targetDir = join(options.modsPath, folderName);
+    const targetDir = join(modsPath, folderName);
     const prefix = item.sourceDir === "" ? "" : `${item.sourceDir}/`;
 
     // Clean replace: remove any existing install of this folder first.

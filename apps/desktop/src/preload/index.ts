@@ -92,6 +92,8 @@ const api: DesktopApi = {
   installListing: (githubRepo: string): Promise<ScanResult> =>
     ipcRenderer.invoke("listings:install", githubRepo),
 
+  relaunchElevated: (): void => ipcRenderer.send("app:relaunchElevated"),
+
   window: {
     minimize: (): void => ipcRenderer.send("window:minimize"),
     toggleMaximize: (): void => ipcRenderer.send("window:toggleMaximize"),

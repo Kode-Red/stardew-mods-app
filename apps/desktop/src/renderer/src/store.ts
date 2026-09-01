@@ -62,6 +62,7 @@ const updatableCount = computed(
 const activeProfile = computed(
   () => state.profiles.profiles.find((p) => p.id === state.profiles.activeId) ?? null,
 );
+const modsWritable = computed(() => state.scan?.modsWritable ?? true);
 const conflicts = computed(() =>
   detectConflicts(
     mods.value.map((m) => ({ folderName: m.folderName, manifest: m.manifest, enabled: m.enabled })),
@@ -380,8 +381,10 @@ export function useStore() {
     enabledCount,
     updatableCount,
     activeProfile,
+    modsWritable,
     conflicts,
     conflictTotal,
+    relaunchElevated: () => api?.relaunchElevated(),
     init,
     dispose,
     refresh,

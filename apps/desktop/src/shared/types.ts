@@ -42,6 +42,8 @@ export interface ScanResult {
   game: GameLocation | null;
   smapi: SmapiInfo;
   mods: ScannedMod[];
+  /** False when the Mods folder can't be modified without elevation (e.g. Program Files). */
+  modsWritable: boolean;
 }
 
 export interface UpdateInfo {
@@ -224,6 +226,9 @@ export interface DesktopApi {
   fetchListings(): Promise<ModListingUi[]>;
   /** Install a listed mod from its GitHub release, then rescan. */
   installListing(githubRepo: string): Promise<ScanResult>;
+
+  /** Relaunch the app with administrator rights (Windows). The app quits and restarts. */
+  relaunchElevated(): void;
 
   window: WindowControls;
 }

@@ -70,10 +70,22 @@ pnpm --filter @sdm/desktop dev
 Other useful commands (run from the repo root):
 
 ```bash
-pnpm test        # run all unit tests (currently @sdm/core: 49 tests)
+pnpm test        # run all unit tests
 pnpm build       # build every package/app
 pnpm typecheck   # type-check every package/app
 ```
+
+### Packaging a shareable build (Windows)
+
+```bash
+pnpm --filter @sdm/desktop dist:win
+```
+
+Produces a one-click installer at `apps/desktop/release/Stardew Mod Manager-<version>-setup.exe`.
+`pnpm --filter @sdm/desktop pack:win` instead produces a portable folder at
+`apps/desktop/release/win-unpacked/` (zip and share; no install). Builds are unsigned
+(`win.signAndEditExecutable: false`), which also avoids electron-builder's winCodeSign tool
+that can't extract on Windows without Developer Mode.
 
 ## The domain engine (`@sdm/core`)
 

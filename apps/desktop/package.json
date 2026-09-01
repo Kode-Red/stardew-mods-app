@@ -8,10 +8,13 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
+    "dist": "electron-vite build && node scripts/pack.mjs",
+    "dist:win": "electron-vite build && node scripts/pack.mjs",
+    "pack:win": "electron-vite build && node scripts/pack.mjs --dir",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck": "pnpm run typecheck:node",
     "test": "vitest run",
-    "clean": "rimraf out .turbo"
+    "clean": "rimraf out release .turbo"
   },
   "dependencies": {
     "@sdm/core": "workspace:*",
@@ -22,6 +25,7 @@
     "@types/node": "^22.10.7",
     "@vitejs/plugin-vue": "^5.2.1",
     "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
     "electron-vite": "^5.0.0",
     "rimraf": "^6.0.1",
     "tailwindcss": "^4.0.0",

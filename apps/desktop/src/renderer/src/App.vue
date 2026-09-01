@@ -24,6 +24,13 @@ function confirmLaunchModded(): void {
   void store.launch("modded");
 }
 
+const isWindows = computed(() => store.state.info?.platform === "win32");
+const moveHelpOpen = ref(false);
+async function chooseFolderFromWarning(): Promise<void> {
+  moveHelpOpen.value = false;
+  await store.pickFolder();
+}
+
 const winApi = (window as unknown as { api?: DesktopApi }).api?.window;
 const isMaximized = ref(false);
 let unsubMaximize: (() => void) | undefined;
@@ -205,6 +212,32 @@ onUnmounted(() => {
           </div>
         </header>
 
+        <!-- Permission warning (game folder not writable) -->
+        <div
+          v-if="isElectron && store.game.value && !store.modsWritable.value"
+          class="flex items-center gap-3 border-b border-warning/40 bg-warning/10 px-5 py-2.5 text-sm"
+        >
+          <UIcon name="i-lucide-shield-alert" class="size-5 shrink-0 text-warning" />
+          <div class="min-w-0 flex-1">
+            <span class="font-medium">Windows is blocking changes to your game folder.</span>
+            <span class="text-muted">
+              It's in a protected location (Program Files). Move the game to a normal folder (no
+              admin needed) — or restart as admin.
+            </span>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <UButton size="sm" color="neutral" variant="subtle" icon="i-lucide-help-circle" @click="moveHelpOpen = true">
+              How to move
+            </UButton>
+            <UButton size="sm" color="neutral" variant="subtle" icon="i-lucide-folder-open" @click="store.pickFolder()">
+              Choose folder
+            </UButton>
+            <UButton v-if="isWindows" size="sm" color="warning" icon="i-lucide-shield" @click="store.relaunchElevated()">
+              Restart as admin
+            </UButton>
+          </div>
+        </div>
+
         <!-- Content -->
         <main class="flex-1 overflow-y-auto">
           <div class="mx-auto max-w-6xl space-y-6 px-8 py-7">
@@ -253,6 +286,42 @@ onUnmounted(() => {
 
     <ProfilesModal v-model:open="store.state.profilesOpen" />
     <SetupWizard />
+
+    <!-- How to move the game out of Program Files -->
+    <UModal
+      :open="moveHelpOpen"
+      title="Move Stardew out of Program Files"
+      @update:open="(v: boolean) => (moveHelpOpen = v)"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <p class="text-sm text-muted">
+            Windows protects <span class="font-mono">Program Files</span>, so mods can't be changed
+            there without admin. Moving the game to a normal folder fixes it permanently — Steam does
+            it for you in a couple of minutes and keeps your saves.
+          </p>
+          <ol class="space-y-2 text-sm">
+            <li class="flex gap-2"><span class="font-medium text-primary">1.</span> In Steam, open <span class="font-medium">Settings → Storage</span>.</li>
+            <li class="flex gap-2"><span class="font-medium text-primary">2.</span> Click <span class="font-medium">Add Drive</span> and pick a spot outside Program Files (another drive, or e.g. <span class="font-mono">C:\Games</span>).</li>
+            <li class="flex gap-2"><span class="font-medium text-primary">3.</span> Select <span class="font-medium">Stardew Valley</span> in the library, then <span class="font-medium">Move</span>.</li>
+            <li class="flex gap-2"><span class="font-medium text-primary">4.</span> Come back here and click <span class="font-medium">Choose folder</span> (or Rescan) so the app picks up the new location.</li>
+          </ol>
+          <UAlert
+            icon="i-lucide-info"
+            color="neutral"
+            variant="soft"
+            title="No admin after this"
+            description="Once the game lives outside Program Files, enabling/disabling, installing, and profile switches all work without administrator rights."
+          />
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton color="neutral" variant="ghost" @click="moveHelpOpen = false">Got it</UButton>
+          <UButton icon="i-lucide-folder-open" @click="chooseFolderFromWarning">Choose folder now</UButton>
+        </div>
+      </template>
+    </UModal>
 
     <!-- Pre-launch save/profile mismatch warning -->
     <UModal

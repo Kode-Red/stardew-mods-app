@@ -4,9 +4,10 @@ import vue from "@vitejs/plugin-vue";
 import ui from "@nuxt/ui/vite";
 
 // electron-vite conventions: renderer root is src/renderer, output is out/renderer.
-// @sdm/core is ESM-only (no CJS `require` export), so it must be bundled into
-// the CJS main/preload output rather than externalized and require()'d at runtime.
-const externalize = externalizeDepsPlugin({ exclude: ["@sdm/core"] });
+// Bundle our workspace pkg (ESM-only) and fflate into the CJS main/preload output
+// so the packaged app has zero runtime node_modules dependencies (only Electron +
+// Node built-ins, both provided at runtime). This keeps electron-builder simple.
+const externalize = externalizeDepsPlugin({ exclude: ["@sdm/core", "fflate"] });
 
 export default defineConfig({
   main: {

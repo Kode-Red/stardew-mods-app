@@ -57,6 +57,8 @@ import { installSmapi } from "./services/smapi-installer.js";
 import { resolveSourceDownload } from "./services/source-install.js";
 import { zipFolder } from "./services/backup.js";
 import { backupSaves, listBackups, listSaves, restoreBackup, savesFolder } from "./services/saves.js";
+import { isWritable } from "./services/permissions.js";
+import { spawn } from "node:child_process";
 import * as curseforge from "./services/curseforge-client.js";
 
 type GetWindow = () => BrowserWindow | null;
@@ -81,12 +83,15 @@ async function resolveGame(): Promise<GameLocation | null> {
 
 async function scan(): Promise<ScanResult> {
   const game = await resolveGame();
-  if (!game) return { game: null, smapi: { installed: false, version: null }, mods: [] };
-  const [smapi, mods] = await Promise.all([
+  if (!game) {
+    return { game: null, smapi: { installed: false, version: null }, mods: [], modsWritable: true };
+  }
+  const [smapi, mods, modsWritable] = await Promise.all([
     detectSmapi(game.path),
     scanMods(game.modsPath),
+    isWritable(game.modsPath),
   ]);
-  return { game, smapi, mods };
+  return { game, smapi, mods, modsWritable };
 }
 
 /** Keep the active profile's enabled set in sync with what is currently on disk. */
@@ -775,6 +780,20 @@ export function registerIpc(windowGetter: GetWindow): void {
       emitProgress({ phase: "error", error: (err as Error).message });
     }
     return scan();
+  });
+
+  ipcMain.on("app:relaunchElevated", () => {
+    if (process.platform !== "win32") return;
+    const exe = process.execPath;
+    const args = process.argv.slice(1);
+    const quote = (s: string): string => `'${s.replace(/'/g, "''")}'`;
+    const argList = args.length ? ` -ArgumentList ${args.map(quote).join(",")}` : "";
+    spawn(
+      "powershell.exe",
+      ["-NoProfile", "-Command", `Start-Process -FilePath ${quote(exe)}${argList} -Verb RunAs`],
+      { detached: true, stdio: "ignore" },
+    ).unref();
+    app.quit();
   });
 
   // Custom title-bar window controls.

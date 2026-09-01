@@ -5,6 +5,12 @@ import { setupNxmProtocol } from "./services/nxm-protocol.js";
 
 let mainWindow: BrowserWindow | null = null;
 
+function iconPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, "icon.png")
+    : join(__dirname, "../../build/icon.png");
+}
+
 function createWindow(): void {
   const isMac = process.platform === "darwin";
   mainWindow = new BrowserWindow({
@@ -15,6 +21,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     title: "Stardew Mod Manager",
+    icon: iconPath(),
     // Frameless with a custom in-app title bar (matches the dark theme).
     frame: false,
     titleBarStyle: isMac ? "hiddenInset" : "hidden",

@@ -1,6 +1,7 @@
 import { rename } from "node:fs/promises";
 import { dirname, join, basename } from "node:path";
 import { toDisabledFolderName, toEnabledFolderName } from "@sdm/core";
+import { friendlyFsError, retryFs } from "./permissions.js";
 
 /**
  * Enable or disable a mod by renaming its folder. SMAPI ignores folders whose
@@ -20,5 +21,9 @@ export async function setModEnabled(
   const newLeaf = enabled ? toEnabledFolderName(leaf) : toDisabledFolderName(leaf);
   if (newLeaf === leaf) return; // already in the desired state
 
-  await rename(current, join(parent, newLeaf));
+  try {
+    await retryFs(() => rename(current, join(parent, newLeaf)));
+  } catch (err) {
+    throw new Error(friendlyFsError(err, leaf));
+  }
 }

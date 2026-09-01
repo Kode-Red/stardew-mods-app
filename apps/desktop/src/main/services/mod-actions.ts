@@ -1,5 +1,7 @@
 import { rm } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
+import { basename } from "node:path";
+import { friendlyFsError, retryFs } from "./permissions.js";
 
 /**
  * Delete a mod's folder. `relativePath` is the mod folder relative to `Mods/`.
@@ -12,5 +14,9 @@ export async function uninstallMod(modsPath: string, relativePath: string): Prom
   if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
     throw new Error("Refusing to delete a path outside the Mods folder.");
   }
-  await rm(target, { recursive: true, force: true });
+  try {
+    await retryFs(() => rm(target, { recursive: true, force: true }));
+  } catch (err) {
+    throw new Error(friendlyFsError(err, basename(target)));
+  }
 }

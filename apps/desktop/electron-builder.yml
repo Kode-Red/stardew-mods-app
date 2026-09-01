@@ -1,0 +1,38 @@
+appId: com.stardewmods.manager
+productName: Stardew Mod Manager
+directories:
+  output: release
+  buildResources: build
+# The main process bundles all its JS deps, so the app ships with no node_modules.
+extraMetadata:
+  dependencies: {}
+files:
+  - out/**
+  - "!**/*.map"
+# icon.png is read at runtime to set the window/taskbar icon (the exe itself isn't
+# edited — see signAndEditExecutable below).
+extraResources:
+  - from: build/icon.png
+    to: icon.png
+win:
+  target:
+    - nsis
+  artifactName: ${productName}-${version}-setup.${ext}
+  # Editing/signing the packaged exe pulls electron-builder's winCodeSign tool,
+  # whose macOS symlinks can't be extracted on Windows without Developer Mode.
+  # Disable it: the installer + shortcuts still get build/icon.ico (via NSIS), and
+  # the running app sets its icon from icon.png at runtime.
+  signAndEditExecutable: false
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+mac:
+  target:
+    - dmg
+  category: public.app-category.games
+linux:
+  target:
+    - AppImage
+  category: Game
