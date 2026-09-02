@@ -1,6 +1,6 @@
 {
   "name": "stardew-mods-app",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "description": "Stardew Valley mod manager (desktop) + web companion.",
   "packageManager": "pnpm@11.17.0",
