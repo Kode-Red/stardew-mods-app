@@ -42,7 +42,7 @@ jobs:
           # electron-builder uploads the installer + latest.yml to the release.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish the release (mark not-draft)
-        run: gh release edit "${{ github.ref_name }}" --draft=false --latest
+      - name: Publish the release (mark not-draft, not-prerelease, latest)
+        run: gh release edit "${{ github.ref_name }}" --draft=false --prerelease=false --latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
