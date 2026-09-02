@@ -238,6 +238,21 @@ onUnmounted(() => {
           </div>
         </div>
 
+        <!-- App update ready -->
+        <div
+          v-if="store.state.appUpdate.state === 'downloaded'"
+          class="flex items-center gap-3 border-b border-primary/40 bg-primary/10 px-5 py-2.5 text-sm"
+        >
+          <UIcon name="i-lucide-sparkles" class="size-5 shrink-0 text-primary" />
+          <div class="min-w-0 flex-1">
+            <span class="font-medium">Update ready</span>
+            <span class="text-muted"> — version {{ store.state.appUpdate.version }} installs when you restart.</span>
+          </div>
+          <UButton size="sm" color="primary" icon="i-lucide-rocket" @click="store.installAppUpdate()">
+            Restart &amp; update
+          </UButton>
+        </div>
+
         <!-- Content -->
         <main class="flex-1 overflow-y-auto">
           <div class="mx-auto max-w-6xl space-y-6 px-8 py-7">

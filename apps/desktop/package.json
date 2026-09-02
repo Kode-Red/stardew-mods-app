@@ -1,6 +1,6 @@
 {
   "name": "@sdm/desktop",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Stardew Mod Manager desktop app (Electron + Vue + Nuxt UI).",
   "main": "./out/main/index.js",
@@ -11,16 +11,18 @@
     "dist": "electron-vite build && node scripts/pack.mjs",
     "dist:win": "electron-vite build && node scripts/pack.mjs",
     "pack:win": "electron-vite build && node scripts/pack.mjs --dir",
+    "release:win": "electron-vite build && node scripts/pack.mjs --publish",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck": "pnpm run typecheck:node",
     "test": "vitest run",
     "clean": "rimraf out release .turbo"
   },
   "dependencies": {
-    "@sdm/core": "workspace:*",
-    "fflate": "^0.8.3"
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
+    "@sdm/core": "workspace:*",
+    "fflate": "^0.8.3",
     "@nuxt/ui": "^3.0.0",
     "@types/node": "^22.10.7",
     "@vitejs/plugin-vue": "^5.2.1",

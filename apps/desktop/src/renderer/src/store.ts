@@ -3,6 +3,7 @@ import { conflictCount, detectConflicts } from "@sdm/core";
 import type {
   AppInfo,
   AppSettings,
+  AppUpdateStatus,
   CurseforgeModSummary,
   DesktopApi,
   ModListingUi,
@@ -35,6 +36,7 @@ interface State {
   error: string | null;
   profilesOpen: boolean;
   setupOpen: boolean;
+  appUpdate: AppUpdateStatus;
 }
 
 const state = reactive<State>({
@@ -50,6 +52,7 @@ const state = reactive<State>({
   error: null,
   profilesOpen: false,
   setupOpen: false,
+  appUpdate: { state: "idle" },
 });
 
 const game = computed(() => state.scan?.game ?? null);
@@ -102,10 +105,13 @@ async function loadSettings(): Promise<void> {
 }
 
 let unsubscribe: (() => void) | undefined;
+let unsubUpdate: (() => void) | undefined;
 
 async function init(): Promise<void> {
   if (!api) return;
   void api.getInfo().then((info) => (state.info = info)).catch(() => undefined);
+  unsubUpdate ??= api.onAppUpdateStatus((status) => (state.appUpdate = status));
+  void api.checkAppUpdate();
   await Promise.all([refresh(), loadSettings(), loadProfiles()]);
   unsubscribe ??= api.onInstallProgress((p) => {
     state.progress = p;
@@ -115,7 +121,16 @@ async function init(): Promise<void> {
 
 function dispose(): void {
   unsubscribe?.();
+  unsubUpdate?.();
   unsubscribe = undefined;
+  unsubUpdate = undefined;
+}
+
+async function checkAppUpdate(): Promise<void> {
+  if (api) await api.checkAppUpdate();
+}
+function installAppUpdate(): void {
+  api?.installAppUpdate();
 }
 
 async function toggle(mod: ScannedMod): Promise<void> {
@@ -385,6 +400,8 @@ export function useStore() {
     conflicts,
     conflictTotal,
     relaunchElevated: () => api?.relaunchElevated(),
+    checkAppUpdate,
+    installAppUpdate,
     init,
     dispose,
     refresh,

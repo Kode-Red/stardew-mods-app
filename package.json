@@ -8,11 +8,18 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "turbo run build",
     "dev": "turbo run dev",
+    "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
+    "check": "turbo run typecheck test build",
+    "app": "pnpm run build && pnpm --filter @sdm/desktop start",
+    "dist": "pnpm --filter @sdm/core build && pnpm --filter @sdm/desktop dist",
+    "dist:win": "pnpm --filter @sdm/core build && pnpm --filter @sdm/desktop dist:win",
+    "pack:win": "pnpm --filter @sdm/core build && pnpm --filter @sdm/desktop pack:win",
+    "release:win": "pnpm --filter @sdm/core build && pnpm --filter @sdm/desktop release:win",
+    "release:reveal": "node -e \"require('child_process').spawn('explorer',[require('path').resolve('apps/desktop/release')],{detached:true})\"",
     "clean": "turbo run clean && rimraf node_modules"
   },
   "devDependencies": {

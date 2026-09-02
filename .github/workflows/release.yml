@@ -1,0 +1,48 @@
+name: Release
+
+# Push a version tag to build the Windows installer and publish it (plus the
+# auto-update feed, latest.yml) to a GitHub Release.
+#
+#   1. bump "version" in apps/desktop/package.json (e.g. 0.2.0)
+#   2. git commit -am "release 0.2.0"
+#   3. git tag v0.2.0 && git push --tags
+#
+# The tag and the package.json version must match.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Sanity check
+        run: pnpm run check
+
+      - name: Build & publish installer
+        run: pnpm run release:win
+        env:
+          # electron-builder uploads the installer + latest.yml to the release.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish the release (mark not-draft)
+        run: gh release edit "${{ github.ref_name }}" --draft=false --latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

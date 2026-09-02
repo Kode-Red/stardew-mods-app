@@ -3,9 +3,12 @@ productName: Stardew Mod Manager
 directories:
   output: release
   buildResources: build
-# The main process bundles all its JS deps, so the app ships with no node_modules.
-extraMetadata:
-  dependencies: {}
+# Auto-update reads GitHub Releases. Set owner/repo to your repository; the token
+# comes from GH_TOKEN when running `release:win`.
+publish:
+  provider: github
+  owner: Kode-Red
+  repo: stardew-mods-app
 files:
   - out/**
   - "!**/*.map"

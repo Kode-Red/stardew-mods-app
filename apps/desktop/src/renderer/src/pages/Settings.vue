@@ -20,6 +20,24 @@ const cfKeyError = ref<string | null>(null);
 const listingsInput = ref("");
 const savingListings = ref(false);
 
+const appVersion = computed(() => store.state.info?.appVersion ?? "");
+const updateStatus = computed(() => {
+  const u = store.state.appUpdate;
+  switch (u.state) {
+    case "checking": return "Checking for updates…";
+    case "available": return `Downloading update v${u.version}…`;
+    case "downloading": return `Downloading… ${u.percent}%`;
+    case "downloaded": return `Update v${u.version} ready — restart to install.`;
+    case "not-available": return "You're on the latest version.";
+    case "error": return `Couldn't check: ${u.message}`;
+    case "unsupported": return "Updates apply to the installed app (not in dev).";
+    default: return "";
+  }
+});
+const checkingUpdate = computed(() =>
+  ["checking", "available", "downloading"].includes(store.state.appUpdate.state),
+);
+
 async function saveKey(): Promise<void> {
   savingKey.value = true;
   keyError.value = null;
@@ -66,6 +84,36 @@ function openUrl(url: string): void {
         Run setup
       </UButton>
     </div>
+
+    <!-- App updates -->
+    <section class="space-y-3 rounded-xl border border-default p-5">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-medium">App updates</h2>
+        <UBadge color="neutral" variant="subtle">v{{ appVersion || "0.0.0" }}</UBadge>
+      </div>
+      <div class="flex items-center gap-3">
+        <UButton
+          icon="i-lucide-refresh-cw"
+          color="neutral"
+          variant="subtle"
+          :loading="checkingUpdate"
+          :disabled="!isElectron"
+          @click="store.checkAppUpdate()"
+        >
+          Check for updates
+        </UButton>
+        <UButton
+          v-if="store.state.appUpdate.state === 'downloaded'"
+          color="primary"
+          icon="i-lucide-rocket"
+          @click="store.installAppUpdate()"
+        >
+          Restart &amp; update
+        </UButton>
+        <span v-if="updateStatus" class="text-sm text-muted">{{ updateStatus }}</span>
+      </div>
+      <p class="text-xs text-muted">Updates are downloaded from GitHub Releases automatically.</p>
+    </section>
 
     <!-- Game folder -->
     <section class="space-y-3 rounded-xl border border-default p-5">

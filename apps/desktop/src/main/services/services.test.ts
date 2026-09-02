@@ -84,6 +84,17 @@ describe("setModEnabled", () => {
     await setModEnabled(mods, "ContentPatcher", true); // already enabled
     expect(await readdir(mods)).toContain("ContentPatcher");
   });
+
+  it("reports a duplicate when both an enabled and disabled copy exist", async () => {
+    const mods = join(root, "Mods");
+    await makeMod(mods, "Dup", manifest("Dup", "me.dup"));
+    await makeMod(mods, ".Dup", manifest("Dup", "me.dup"));
+    await expect(setModEnabled(mods, "Dup", false)).rejects.toThrow(/duplicate/i);
+    // Nothing was renamed — both copies remain.
+    const entries = await readdir(mods);
+    expect(entries).toContain("Dup");
+    expect(entries).toContain(".Dup");
+  });
 });
 
 describe("uninstallMod", () => {

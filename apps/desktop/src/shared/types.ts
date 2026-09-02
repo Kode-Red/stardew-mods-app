@@ -78,6 +78,17 @@ export interface ProfilesState {
 
 export type LaunchMode = "modded" | "vanilla";
 
+/** State of the app's own auto-updater (checks GitHub Releases). */
+export type AppUpdateStatus =
+  | { state: "idle" }
+  | { state: "checking" }
+  | { state: "available"; version: string }
+  | { state: "not-available" }
+  | { state: "downloading"; percent: number }
+  | { state: "downloaded"; version: string }
+  | { state: "error"; message: string }
+  | { state: "unsupported" }; // e.g. running in dev, not a packaged install
+
 export interface SaveEntryUi {
   folder: string;
   farmName: string;
@@ -229,6 +240,13 @@ export interface DesktopApi {
 
   /** Relaunch the app with administrator rights (Windows). The app quits and restarts. */
   relaunchElevated(): void;
+
+  /** Ask the auto-updater to check GitHub Releases now. */
+  checkAppUpdate(): Promise<void>;
+  /** Quit and install a downloaded update. */
+  installAppUpdate(): void;
+  /** Subscribe to auto-updater status. Returns an unsubscribe function. */
+  onAppUpdateStatus(callback: (status: AppUpdateStatus) => void): () => void;
 
   window: WindowControls;
 }

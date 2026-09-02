@@ -55,37 +55,48 @@ Planned (later phases): `apps/web` (Nuxt SSR companion), `apps/api` (hosting +
 version registry), `packages/sources` (Nexus / CurseForge / SMAPI-web adapters),
 `packages/ui` (shared components), `packages/db` (Drizzle schema).
 
-## Getting started
+## Commands
+
+First time only:
 
 ```bash
 pnpm install
 ```
 
-Run the desktop app in dev (launches Electron with HMR):
+Everything else runs **from the repo root** (each builds `@sdm/core` first where needed):
 
-```bash
-pnpm --filter @sdm/desktop dev
-```
+| Command | What it does |
+| --- | --- |
+| `pnpm dev` | Run the app in dev with hot-reload (builds core first, then Electron). |
+| `pnpm app` | Build everything and run the packaged output (no dev server). |
+| `pnpm build` | Build every package/app. |
+| `pnpm test` | Run all unit tests. |
+| `pnpm typecheck` | Type-check every package/app. |
+| `pnpm check` | typecheck + test + build, in one go. |
+| `pnpm dist:win` | Build the **Windows installer** → `apps/desktop/release/Stardew Mod Manager-<version>-setup.exe` (also writes `latest.yml` for auto-update). |
+| `pnpm pack:win` | Build a **portable** folder → `apps/desktop/release/win-unpacked/` (zip & share, no install). |
+| `pnpm --filter @sdm/desktop release:win` | Build **and publish** to GitHub Releases (needs `GH_TOKEN`). |
+| `pnpm release:reveal` | Open the `release/` folder in Explorer. |
+| `pnpm clean` | Remove build outputs + `node_modules`. |
 
-Other useful commands (run from the repo root):
+Notes:
+- Builds are **unsigned** (`win.signAndEditExecutable: false`), which avoids electron-builder's
+  winCodeSign tool that can't extract on Windows without Developer Mode. The installer, shortcuts,
+  and the running app show the custom icon; the bare `.exe` keeps the default Electron icon.
+- macOS/Linux packaging (`electron-builder`'s dmg/AppImage) needs to run on those OSes.
 
-```bash
-pnpm test        # run all unit tests
-pnpm build       # build every package/app
-pnpm typecheck   # type-check every package/app
-```
+### Auto-updates (GitHub Releases)
 
-### Packaging a shareable build (Windows)
+The app checks **GitHub Releases** for updates (via `electron-updater`) and installs them on
+restart. To turn it on for your fork:
 
-```bash
-pnpm --filter @sdm/desktop dist:win
-```
+1. Set `publish.owner` / `publish.repo` in `apps/desktop/electron-builder.yml` to your repo.
+2. Bump `version` in `apps/desktop/package.json`, commit, and tag it.
+3. Run `GH_TOKEN=<token> pnpm --filter @sdm/desktop release:win` to build + upload the installer and
+   `latest.yml` to a GitHub Release.
+4. Installed apps will detect the new version, download it, and show "Restart & update".
 
-Produces a one-click installer at `apps/desktop/release/Stardew Mod Manager-<version>-setup.exe`.
-`pnpm --filter @sdm/desktop pack:win` instead produces a portable folder at
-`apps/desktop/release/win-unpacked/` (zip and share; no install). Builds are unsigned
-(`win.signAndEditExecutable: false`), which also avoids electron-builder's winCodeSign tool
-that can't extract on Windows without Developer Mode.
+Auto-update only runs in an installed build (in dev it reports "unsupported").
 
 ## The domain engine (`@sdm/core`)
 

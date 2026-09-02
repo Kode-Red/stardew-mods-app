@@ -94,6 +94,17 @@ const api: DesktopApi = {
 
   relaunchElevated: (): void => ipcRenderer.send("app:relaunchElevated"),
 
+  checkAppUpdate: (): Promise<void> => ipcRenderer.invoke("updates:check"),
+  installAppUpdate: (): void => ipcRenderer.send("updates:install"),
+  onAppUpdateStatus: (
+    callback: (status: import("../shared/types.js").AppUpdateStatus) => void,
+  ): (() => void) => {
+    const listener = (_e: IpcRendererEvent, status: import("../shared/types.js").AppUpdateStatus): void =>
+      callback(status);
+    ipcRenderer.on("app-update:status", listener);
+    return () => ipcRenderer.removeListener("app-update:status", listener);
+  },
+
   window: {
     minimize: (): void => ipcRenderer.send("window:minimize"),
     toggleMaximize: (): void => ipcRenderer.send("window:toggleMaximize"),

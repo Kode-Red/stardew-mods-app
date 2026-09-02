@@ -58,6 +58,7 @@ import { resolveSourceDownload } from "./services/source-install.js";
 import { zipFolder } from "./services/backup.js";
 import { backupSaves, listBackups, listSaves, restoreBackup, savesFolder } from "./services/saves.js";
 import { isWritable } from "./services/permissions.js";
+import { checkForAppUpdates, installAppUpdate, setupUpdater } from "./services/updater.js";
 import { spawn } from "node:child_process";
 import * as curseforge from "./services/curseforge-client.js";
 
@@ -221,6 +222,10 @@ export async function handleNxmLink(link: NxmLink): Promise<void> {
 
 export function registerIpc(windowGetter: GetWindow): void {
   getWindow = windowGetter;
+
+  setupUpdater((status) => getWindow()?.webContents.send("app-update:status", status));
+  ipcMain.handle("updates:check", () => checkForAppUpdates());
+  ipcMain.on("updates:install", () => installAppUpdate());
 
   ipcMain.handle("app:info", (): AppInfo => ({
     appVersion: app.getVersion(),
