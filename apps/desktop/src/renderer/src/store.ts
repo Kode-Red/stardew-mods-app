@@ -17,6 +17,7 @@ import type {
   SavesState,
   ScannedMod,
   ScanResult,
+  UpdateChannel,
   UpdateInfo,
 } from "../../shared/types";
 
@@ -128,6 +129,12 @@ function dispose(): void {
 
 async function checkAppUpdate(): Promise<void> {
   if (api) await api.checkAppUpdate();
+}
+async function setUpdateChannel(channel: UpdateChannel): Promise<void> {
+  if (!api) return;
+  await withError(async () => {
+    state.settings = await api.setUpdateChannel(channel);
+  });
 }
 function installAppUpdate(): void {
   api?.installAppUpdate();
@@ -401,6 +408,7 @@ export function useStore() {
     conflictTotal,
     relaunchElevated: () => api?.relaunchElevated(),
     checkAppUpdate,
+    setUpdateChannel,
     installAppUpdate,
     init,
     dispose,

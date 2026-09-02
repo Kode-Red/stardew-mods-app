@@ -38,6 +38,15 @@ const checkingUpdate = computed(() =>
   ["checking", "available", "downloading"].includes(store.state.appUpdate.state),
 );
 
+const channel = computed(() => store.state.settings?.updateChannel ?? "stable");
+const switchingChannel = ref(false);
+async function switchChannel(next: "stable" | "beta"): Promise<void> {
+  if (next === channel.value || switchingChannel.value) return;
+  switchingChannel.value = true;
+  await store.setUpdateChannel(next);
+  switchingChannel.value = false;
+}
+
 async function saveKey(): Promise<void> {
   savingKey.value = true;
   keyError.value = null;
@@ -112,6 +121,41 @@ function openUrl(url: string): void {
         </UButton>
         <span v-if="updateStatus" class="text-sm text-muted">{{ updateStatus }}</span>
       </div>
+
+      <div class="flex items-center justify-between gap-4 border-t border-default pt-3">
+        <div class="min-w-0">
+          <p class="text-sm">Release channel</p>
+          <p class="text-xs text-muted">
+            <template v-if="channel === 'beta'">
+              Beta gets prereleases early — expect rough edges. Switch to Stable to move back to the latest stable build.
+            </template>
+            <template v-else>
+              Stable only. Switch to Beta to test prerelease builds before they ship.
+            </template>
+          </p>
+        </div>
+        <UButtonGroup class="shrink-0">
+          <UButton
+            :color="channel === 'stable' ? 'primary' : 'neutral'"
+            :variant="channel === 'stable' ? 'solid' : 'subtle'"
+            :loading="switchingChannel && channel !== 'stable'"
+            :disabled="!isElectron"
+            @click="switchChannel('stable')"
+          >
+            Stable
+          </UButton>
+          <UButton
+            :color="channel === 'beta' ? 'primary' : 'neutral'"
+            :variant="channel === 'beta' ? 'solid' : 'subtle'"
+            :loading="switchingChannel && channel !== 'beta'"
+            :disabled="!isElectron"
+            @click="switchChannel('beta')"
+          >
+            Beta
+          </UButton>
+        </UButtonGroup>
+      </div>
+
       <p class="text-xs text-muted">Updates are downloaded from GitHub Releases automatically.</p>
     </section>
 

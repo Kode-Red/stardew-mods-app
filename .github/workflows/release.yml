@@ -8,6 +8,11 @@ name: Release
 #   3. git tag v0.2.0 && git push --tags
 #
 # The tag and the package.json version must match.
+#
+# Channels: a plain tag (v0.2.3) publishes a STABLE release (marked "Latest");
+# a prerelease tag whose version has a hyphen (v0.3.0-beta.1) publishes a BETA
+# release (marked pre-release, not "Latest"). The app's Stable channel tracks
+# the former; the Beta channel (Settings → App updates) also sees the latter.
 
 on:
   push:
@@ -42,7 +47,16 @@ jobs:
           # electron-builder uploads the installer + latest.yml to the release.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish the release (mark not-draft, not-prerelease, latest)
-        run: gh release edit "${{ github.ref_name }}" --draft=false --prerelease=false --latest
+      - name: Publish the release (stable = latest, prerelease tag = beta)
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -match '-') {
+            # Prerelease tag (e.g. v0.3.0-beta.1): beta channel only, not "Latest".
+            gh release edit $tag --draft=false --prerelease=true
+          } else {
+            # Plain tag: stable, marked as the "Latest" release.
+            gh release edit $tag --draft=false --prerelease=false --latest
+          }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

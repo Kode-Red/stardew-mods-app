@@ -24,6 +24,7 @@ import type {
   ProfilesState,
   SavesState,
   ScanResult,
+  UpdateChannel,
   UpdateInfo,
 } from "../shared/types.js";
 import { readSettings, writeSettings } from "./services/settings.js";
@@ -161,6 +162,7 @@ async function toAppSettings(): Promise<AppSettings> {
     modCategories: settings.modCategories ?? {},
     modFolders: settings.modFolders ?? [],
     listingsUrl: settings.listingsUrl ?? "",
+    updateChannel: settings.updateChannel ?? "stable",
   };
 }
 
@@ -225,6 +227,11 @@ export function registerIpc(windowGetter: GetWindow): void {
 
   setupUpdater((status) => getWindow()?.webContents.send("app-update:status", status));
   ipcMain.handle("updates:check", () => checkForAppUpdates());
+  ipcMain.handle("updates:setChannel", async (_e, channel: UpdateChannel): Promise<AppSettings> => {
+    await writeSettings({ updateChannel: channel === "beta" ? "beta" : "stable" });
+    await checkForAppUpdates();
+    return toAppSettings();
+  });
   ipcMain.on("updates:install", () => installAppUpdate());
 
   ipcMain.handle("app:info", (): AppInfo => ({

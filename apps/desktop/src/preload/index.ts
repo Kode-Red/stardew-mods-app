@@ -95,6 +95,8 @@ const api: DesktopApi = {
   relaunchElevated: (): void => ipcRenderer.send("app:relaunchElevated"),
 
   checkAppUpdate: (): Promise<void> => ipcRenderer.invoke("updates:check"),
+  setUpdateChannel: (channel): Promise<AppSettings> =>
+    ipcRenderer.invoke("updates:setChannel", channel),
   installAppUpdate: (): void => ipcRenderer.send("updates:install"),
   onAppUpdateStatus: (
     callback: (status: import("../shared/types.js").AppUpdateStatus) => void,

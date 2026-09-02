@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { app } from "electron";
-import type { GameSource, NexusAccount, Profile } from "../../shared/types.js";
+import type { GameSource, NexusAccount, Profile, UpdateChannel } from "../../shared/types.js";
 
 export interface Settings {
   gamePath?: string;
@@ -17,6 +17,8 @@ export interface Settings {
   modFolders?: string[];
   /** URL of a community listings index (JSON on GitHub). */
   listingsUrl?: string;
+  /** Release channel the app-updater follows (defaults to "stable"). */
+  updateChannel?: UpdateChannel;
   /** Save folder name -> profile id it was last played under. */
   saveProfiles?: Record<string, string>;
   /** The most recent modded launch, used to associate freshly-played saves. */

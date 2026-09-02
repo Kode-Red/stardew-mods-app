@@ -78,6 +78,9 @@ export interface ProfilesState {
 
 export type LaunchMode = "modded" | "vanilla";
 
+/** Which GitHub Releases the updater tracks: stable only, or including prereleases. */
+export type UpdateChannel = "stable" | "beta";
+
 /** State of the app's own auto-updater (checks GitHub Releases). */
 export type AppUpdateStatus =
   | { state: "idle" }
@@ -133,6 +136,8 @@ export interface AppSettings {
   modFolders: string[];
   /** URL of a community listings index, or "" if unset. */
   listingsUrl: string;
+  /** Which release channel the app-updater follows. */
+  updateChannel: UpdateChannel;
 }
 
 export interface ModListingUi {
@@ -243,6 +248,8 @@ export interface DesktopApi {
 
   /** Ask the auto-updater to check GitHub Releases now. */
   checkAppUpdate(): Promise<void>;
+  /** Switch the update channel (stable/beta), then re-check. Returns updated settings. */
+  setUpdateChannel(channel: UpdateChannel): Promise<AppSettings>;
   /** Quit and install a downloaded update. */
   installAppUpdate(): void;
   /** Subscribe to auto-updater status. Returns an unsubscribe function. */
