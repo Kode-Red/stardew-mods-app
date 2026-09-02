@@ -9,7 +9,7 @@ import NavItem from "./components/NavItem.vue";
 
 const store = useStore();
 const collapsed = ref(false);
-const smapiVersion = computed(() => (store.smapi.value?.version ?? "").split("+")[0]);
+const clientVersion = computed(() => (store.state.info?.appVersion ?? "").split("+")[0]);
 const pendingLaunchWarning = ref<LaunchWarning | null>(null);
 async function launchModded(): Promise<void> {
   const warning = await store.launchWarning();
@@ -102,7 +102,7 @@ onUnmounted(() => {
           </div>
           <div v-if="!collapsed" class="min-w-0">
             <p class="truncate text-sm font-semibold leading-tight">Stardew Mods</p>
-            <p class="text-[11px] text-muted">v{{ smapiVersion }} · early</p>
+            <p class="text-[11px] text-muted">v{{ clientVersion }} · early</p>
           </div>
         </div>
 
