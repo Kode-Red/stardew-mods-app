@@ -97,7 +97,7 @@ restart. To turn it on for your fork:
 4. Installed apps will detect the new version, download it, and show "Restart & update".
 
 Auto-update only runs in an installed build (in dev it reports "unsupported").
-
+ 
 ## The domain engine (`@sdm/core`)
 
 This is the tested heart of the manager and is deliberately free of any
