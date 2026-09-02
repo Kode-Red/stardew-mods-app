@@ -1,6 +1,6 @@
 {
   "name": "@sdm/desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Stardew Mod Manager desktop app (Electron + Vue + Nuxt UI).",
   "main": "./out/main/index.js",
