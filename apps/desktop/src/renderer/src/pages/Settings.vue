@@ -9,6 +9,23 @@ const installingSmapi = computed(() => {
   const p = store.state.progress;
   return !!p && ["resolving", "downloading", "installing"].includes(p.phase);
 });
+
+const smapiUpdate = computed(() => store.state.smapiUpdate);
+const smapiUpdateAvailable = computed(() => smapiUpdate.value?.status === "update-available");
+const checkingSmapi = ref(false);
+async function checkSmapi(): Promise<void> {
+  if (checkingSmapi.value) return;
+  checkingSmapi.value = true;
+  await store.checkSmapiUpdate();
+  checkingSmapi.value = false;
+}
+const smapiButtonLabel = computed(() => {
+  if (!store.smapi.value?.installed) return "Install SMAPI";
+  if (smapiUpdateAvailable.value && smapiUpdate.value?.latestVersion) {
+    return `Update to ${smapiUpdate.value.latestVersion}`;
+  }
+  return "Reinstall SMAPI";
+});
 const nexusKeyInput = ref("");
 const savingKey = ref(false);
 const keyError = ref<string | null>(null);
@@ -176,26 +193,54 @@ function openUrl(url: string): void {
 
     <!-- SMAPI -->
     <section class="space-y-3 rounded-xl border border-default p-5">
-      <div class="flex items-center justify-between">
+      <div class="flex items-center justify-between gap-2">
         <h2 class="text-sm font-medium">SMAPI (mod loader)</h2>
-        <UBadge v-if="store.smapi.value?.installed" color="success" variant="subtle">
-          Installed{{ smapiVersion ? ` · ${smapiVersion}` : "" }}
-        </UBadge>
-        <UBadge v-else color="error" variant="subtle">Not installed</UBadge>
+        <div class="flex items-center gap-2">
+          <UBadge v-if="smapiUpdateAvailable" color="warning" variant="subtle">
+            Update available{{ smapiUpdate?.latestVersion ? ` · ${smapiUpdate.latestVersion}` : "" }}
+          </UBadge>
+          <UBadge
+            v-else-if="store.smapi.value?.installed && smapiUpdate?.status === 'up-to-date'"
+            color="success"
+            variant="subtle"
+          >
+            Up to date
+          </UBadge>
+          <UBadge v-if="store.smapi.value?.installed" color="neutral" variant="subtle">
+            Installed{{ smapiVersion ? ` · ${smapiVersion}` : "" }}
+          </UBadge>
+          <UBadge v-else color="error" variant="subtle">Not installed</UBadge>
+        </div>
       </div>
       <div class="flex items-center gap-2">
         <UButton
-          icon="i-lucide-download"
+          :icon="smapiUpdateAvailable ? 'i-lucide-arrow-up-circle' : 'i-lucide-download'"
+          :color="store.smapi.value?.installed && !smapiUpdateAvailable ? 'neutral' : 'primary'"
+          :variant="store.smapi.value?.installed && !smapiUpdateAvailable ? 'subtle' : 'solid'"
           :loading="installingSmapi"
           :disabled="!isElectron || !store.game.value"
           @click="store.installSmapi()"
         >
-          {{ store.smapi.value?.installed ? "Reinstall / update SMAPI" : "Install SMAPI" }}
+          {{ smapiButtonLabel }}
+        </UButton>
+        <UButton
+          v-if="store.smapi.value?.installed"
+          icon="i-lucide-refresh-cw"
+          color="neutral"
+          variant="ghost"
+          :loading="checkingSmapi"
+          :disabled="!isElectron || !store.game.value"
+          @click="checkSmapi"
+        >
+          Check
         </UButton>
         <span v-if="!store.game.value" class="text-xs text-muted">Set your game folder first.</span>
       </div>
       <p class="text-xs text-muted">
         Downloads the official installer from smapi.io and runs it. Required to load mods.
+        <template v-if="store.smapi.value?.installed && smapiUpdate?.latestVersion && !smapiUpdateAvailable">
+          Latest release is {{ smapiUpdate.latestVersion }}.
+        </template>
       </p>
     </section>
 

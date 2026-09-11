@@ -25,6 +25,16 @@ export interface SmapiInfo {
   version: string | null;
 }
 
+/** Installed-vs-latest SMAPI comparison, driven off the SMAPI GitHub releases. */
+export interface SmapiUpdateInfo {
+  installed: boolean;
+  /** Cleaned installed version (build metadata stripped), or null if unknown. */
+  installedVersion: string | null;
+  /** Latest released SMAPI version, or null if the lookup failed. */
+  latestVersion: string | null;
+  status: UpdateStatus;
+}
+
 export interface ScannedMod {
   /** Folder path relative to `Mods/` (may contain a leading-dot segment). */
   relativePath: string;
@@ -236,6 +246,8 @@ export interface DesktopApi {
 
   /** Download + run the official SMAPI installer, then rescan. */
   installSmapi(): Promise<ScanResult>;
+  /** Compare the installed SMAPI against the latest GitHub release. */
+  checkSmapiUpdate(): Promise<SmapiUpdateInfo>;
 
   setListingsUrl(url: string): Promise<AppSettings>;
   /** Fetch the community listings index (metadata only; files stay on GitHub). */

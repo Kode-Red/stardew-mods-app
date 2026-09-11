@@ -17,6 +17,7 @@ import type {
   SavesState,
   ScannedMod,
   ScanResult,
+  SmapiUpdateInfo,
   UpdateChannel,
   UpdateInfo,
 } from "../../shared/types";
@@ -38,6 +39,7 @@ interface State {
   profilesOpen: boolean;
   setupOpen: boolean;
   appUpdate: AppUpdateStatus;
+  smapiUpdate: SmapiUpdateInfo | null;
 }
 
 const state = reactive<State>({
@@ -54,6 +56,7 @@ const state = reactive<State>({
   profilesOpen: false,
   setupOpen: false,
   appUpdate: { state: "idle" },
+  smapiUpdate: null,
 });
 
 const game = computed(() => state.scan?.game ?? null);
@@ -114,6 +117,7 @@ async function init(): Promise<void> {
   unsubUpdate ??= api.onAppUpdateStatus((status) => (state.appUpdate = status));
   void api.checkAppUpdate();
   await Promise.all([refresh(), loadSettings(), loadProfiles()]);
+  void checkSmapiUpdate();
   unsubscribe ??= api.onInstallProgress((p) => {
     state.progress = p;
     if (p.phase === "done") void refresh();
@@ -349,6 +353,13 @@ async function installSmapi(): Promise<void> {
   await withError(async () => {
     state.scan = await api.installSmapi();
   });
+  await checkSmapiUpdate();
+}
+
+async function checkSmapiUpdate(): Promise<void> {
+  if (!api) return;
+  const result = await withError(() => api.checkSmapiUpdate());
+  if (result) state.smapiUpdate = result;
 }
 
 async function saveListingsUrl(url: string): Promise<void> {
@@ -447,6 +458,7 @@ export function useStore() {
     saveListingsUrl,
     fetchListings,
     installListing,
+    checkSmapiUpdate,
     saveCurseForgeKey,
     searchStore,
     installCurseforgeMod,

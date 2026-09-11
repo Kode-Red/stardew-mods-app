@@ -85,6 +85,8 @@ const api: DesktopApi = {
   installCurseforgeMod: (modId: number, fileId: number | null): Promise<ScanResult> =>
     ipcRenderer.invoke("store:installCurseforge", modId, fileId),
   installSmapi: (): Promise<ScanResult> => ipcRenderer.invoke("smapi:install"),
+  checkSmapiUpdate: (): Promise<import("../shared/types.js").SmapiUpdateInfo> =>
+    ipcRenderer.invoke("smapi:checkUpdate"),
   setListingsUrl: (url: string): Promise<AppSettings> =>
     ipcRenderer.invoke("settings:setListingsUrl", url),
   fetchListings: (): Promise<import("../shared/types.js").ModListingUi[]> =>

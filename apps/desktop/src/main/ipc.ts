@@ -24,6 +24,7 @@ import type {
   ProfilesState,
   SavesState,
   ScanResult,
+  SmapiUpdateInfo,
   UpdateChannel,
   UpdateInfo,
 } from "../shared/types.js";
@@ -54,7 +55,7 @@ import {
 import { applyProfile } from "./services/apply-profile.js";
 import { uninstallMod } from "./services/mod-actions.js";
 import { launchGame } from "./services/launch.js";
-import { installSmapi } from "./services/smapi-installer.js";
+import { checkSmapiUpdate, installSmapi } from "./services/smapi-installer.js";
 import { resolveSourceDownload } from "./services/source-install.js";
 import { zipFolder } from "./services/backup.js";
 import { backupSaves, listBackups, listSaves, restoreBackup, savesFolder } from "./services/saves.js";
@@ -749,6 +750,12 @@ export function registerIpc(windowGetter: GetWindow): void {
       }
     });
     return scan();
+  });
+
+  ipcMain.handle("smapi:checkUpdate", async (): Promise<SmapiUpdateInfo> => {
+    const game = await resolveGame();
+    if (!game) return { installed: false, installedVersion: null, latestVersion: null, status: "unknown" };
+    return checkSmapiUpdate(game.path);
   });
 
   ipcMain.handle("store:browse", async (_event, kind: NexusBrowseKind) => {
