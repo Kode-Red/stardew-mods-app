@@ -21,11 +21,12 @@ win:
   target:
     - nsis
   artifactName: ${productName}-${version}-setup.${ext}
-  # Editing/signing the packaged exe pulls electron-builder's winCodeSign tool,
-  # whose macOS symlinks can't be extracted on Windows without Developer Mode.
-  # Disable it: the installer + shortcuts still get build/icon.ico (via NSIS), and
-  # the running app sets its icon from icon.png at runtime.
+  # Keep electron-builder's own sign/edit off — it pulls the winCodeSign tool whose
+  # macOS symlinks can't extract on Windows without Developer Mode. Instead we embed
+  # build/icon.ico into the exe ourselves in the afterPack hook (rcedit), which edits
+  # the PE directly and never needs winCodeSign.
   signAndEditExecutable: false
+afterPack: ./scripts/after-pack.mjs
 nsis:
   oneClick: false
   perMachine: false
@@ -39,3 +40,6 @@ linux:
   target:
     - AppImage
   category: Game
+  maintainer: Kode-Red
+  synopsis: Mod manager for Stardew Valley
+  artifactName: ${productName}-${version}.${ext}

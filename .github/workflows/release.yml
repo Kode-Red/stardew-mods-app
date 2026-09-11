@@ -13,6 +13,10 @@ name: Release
 # a prerelease tag whose version has a hyphen (v0.3.0-beta.1) publishes a BETA
 # release (marked pre-release, not "Latest"). The app's Stable channel tracks
 # the former; the Beta channel (Settings → App updates) also sees the latter.
+#
+# Windows and Linux artifacts are built on their own runners and uploaded to the
+# same release: the Windows job produces the NSIS installer + latest.yml, the
+# Linux job produces the AppImage + latest-linux.yml (electron-updater feeds).
 
 on:
   push:
@@ -24,7 +28,11 @@ permissions:
 
 jobs:
   release:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -41,13 +49,15 @@ jobs:
       - name: Sanity check
         run: pnpm run check
 
-      - name: Build & publish installer
-        run: pnpm run release:win
+      - name: Build & publish (installer + auto-update feed for this OS)
+        run: pnpm run release
         env:
-          # electron-builder uploads the installer + latest.yml to the release.
+          # electron-builder uploads this OS's artifacts + update feed to the release.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Flip the release out of draft and set its channel once, from the Windows job.
       - name: Publish the release (stable = latest, prerelease tag = beta)
+        if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"

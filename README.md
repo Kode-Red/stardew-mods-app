@@ -75,9 +75,13 @@ Everything else runs **from the repo root** (each builds `@sdm/core` first where
 
 Notes:
 - Builds are **unsigned** (`win.signAndEditExecutable: false`), which avoids electron-builder's
-  winCodeSign tool that can't extract on Windows without Developer Mode. The installer, shortcuts,
-  and the running app show the custom icon; the bare `.exe` keeps the default Electron icon.
-- macOS/Linux packaging (`electron-builder`'s dmg/AppImage) needs to run on those OSes.
+  winCodeSign tool that can't extract on Windows without Developer Mode. The app icon is embedded
+  into the `.exe` directly by `scripts/after-pack.mjs` (rcedit), so the installer, shortcuts,
+  taskbar, and Explorer all show the custom icon.
+- **Windows and Linux** are both built by the release workflow (on their own runners): the
+  Windows `.exe` installer + `latest.yml`, and the Linux `.AppImage` + `latest-linux.yml`, all
+  uploaded to the same GitHub Release. Building Linux locally needs a Linux machine (`pnpm dist`
+  there). **macOS** (dmg) still needs a macOS runner and isn't in the workflow yet.
 
 ### Auto-updates (GitHub Releases)
 
