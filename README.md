@@ -4,12 +4,6 @@ A mod manager for **Stardew Valley** — a desktop app that installs, updates, a
 organises SMAPI mods, plus a web companion for discovery and (eventually)
 first-party mod hosting. Built to fill the gap left by the current tooling.
 
-> **Status: Phases 3–5.** On top of Phase 2, the app installs from a local zip,
-> registers the `nxm://` handler, downloads from Nexus (personal API key), has a
-> full app shell (frameless custom title bar, sidebar nav, **profile selector**,
-> **Launch modded / without mods**, switchable **profiles**), and a **Mods Store**
-> that browses Nexus (trending/latest) with a mod-detail page. CurseForge and
-> SMAPI bootstrap are next — see the roadmap below.
 
 ## Tech stack
 
@@ -115,37 +109,6 @@ the future web app alike.
 - **`findMissingDependencies(manifest, installed)`** — missing/outdated required deps.
 - **`parseUpdateKeys([...])`** — maps a mod to its hosting sites, which is how
   version-mismatch detection will drive the SMAPI Web API in Phase 2.
-
-## Roadmap
-
-1. **Foundations** — monorepo, `@sdm/core`, Electron + Nuxt UI shell. ✅
-2. **Mod manager** — locate the Stardew install, scan `Mods/`, list mods,
-   enable/disable, uninstall, reveal/open folders, **organize into folders
-   (drag-and-drop with auto-scroll)**, run update/compat checks via the
-   [SMAPI Web API](https://smapi.io/), one-click **update** (CurseForge / GitHub
-   releases / Nexus Premium), and **conflict detection** (duplicate UniqueIDs,
-   missing dependencies). ✅
-3. **Downloads** — install from local zip ✅, `nxm://` handler ✅, Nexus API
-   (personal key) ✅, CurseForge (API key + search, respects each project's
-   third-party distribution toggle) ✅. Next: .rar/.7z support.
-4. **App shell & profiles** — frameless title bar ✅, sidebar/topbar shell ✅,
-   switchable mod profiles ✅, Launch modded / vanilla ✅, **shareable modpack
-   recipes** ✅, and **save protection**: auto-backup saves before every modded
-   launch (with restore), save↔profile association, and a pre-launch warning if
-   the newest save's profile differs from the active one. ✅
-5. **Mods Store** — browse Nexus trending/latest ✅, mod-detail page ✅, CurseForge
-   search ✅, source switch ✅, download + install ✅ (Nexus premium direct / free
-   via nxm; CurseForge respecting the distribution toggle).
-6. **SMAPI bootstrap & setup flow** — first-run **setup wizard** (Game → SMAPI →
-   Ready); downloads the official SMAPI installer and runs it non-interactively
-   (`--install --game-path`) with a folder-open fallback; a dedicated
-   Install/Reinstall SMAPI control in Settings. ✅
-7. **Community listings** — an in-app "Community" store tab reads a JSON index
-   (hosted on GitHub) of mods that each link to a creator's GitHub repo, and
-   installs from their GitHub release. We list; GitHub hosts the files. ✅ (index
-   repo + submission flow TBD)
-8. **Web companion + first-party hosting** — Nuxt portal, creator accounts,
-   moderation. Only listings (GitHub-hosted files) or author-uploaded mods.
 
 ## Licensing notes
 
